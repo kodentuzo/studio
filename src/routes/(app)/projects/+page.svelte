@@ -135,7 +135,9 @@
 		<Table.Body>
 			{#each data.projects as project (project.id)}
 				<Table.Row>
-					<Table.Cell class="font-medium">{project.name}</Table.Cell>
+					<Table.Cell class="font-medium">
+						<a href="/projects/{project.slug}" class="hover:underline">{project.name}</a>
+					</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{project.slug}</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{project.description ?? ""}</Table.Cell>
 				</Table.Row>
