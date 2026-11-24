@@ -1,17 +1,38 @@
 import { redirect } from '@sveltejs/kit';
-import type { Handle } from '@sveltejs/kit/hooks';
+import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
+import { building } from '$app/env';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { getMigrations } from 'better-auth/db/migration';
+import { auth } from '#lib/server/auth.js';
+
+// Runs once when the server starts: creates or updates the sign-in tables.
+export const init: ServerInit = async () => {
+	const { runMigrations } = await getMigrations(auth.options);
+	await runMigrations();
+};
 
 // Every request passes through here before any page or endpoint runs.
 export const handle: Handle = async ({ event, resolve }) => {
-	// Nobody can sign in yet, so there is never a user. Real sign-in sets this.
-	event.locals.user = null;
+	const session = building
+		? null
+		: await auth.api.getSession({ headers: event.request.headers });
 
-	// Everything needs a signed-in user, except the pages under /auth.
+	event.locals.user = session?.user ?? null;
+	event.locals.session = session?.session ?? null;
+
 	const isAuthPage = event.route.id?.startsWith('/auth') ?? false;
+	// Better Auth's own endpoints: sign in, sign up, sign out and the rest.
+	const isAuthApi = event.url.pathname.startsWith('/api/auth');
 
-	if (!event.locals.user && !isAuthPage) {
+	// Everything needs a signed-in user, except signing in itself.
+	if (!event.locals.user && !isAuthPage && !isAuthApi) {
 		redirect(303, '/auth/sign-in');
 	}
 
-	return resolve(event);
+	// A signed-in user has no use for the sign-in and sign-up pages.
+	if (event.locals.user && isAuthPage) {
+		redirect(303, '/');
+	}
+
+	return svelteKitHandler({ event, resolve, auth, building });
 };

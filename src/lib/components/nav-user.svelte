@@ -1,17 +1,31 @@
 <script lang="ts">
-	import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
-	import BellIcon from "@lucide/svelte/icons/bell";
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
-	import CreditCardIcon from "@lucide/svelte/icons/credit-card";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
-	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import * as Avatar from "#lib/components/ui/avatar/index.js";
 	import * as DropdownMenu from "#lib/components/ui/dropdown-menu/index.js";
 	import * as Sidebar from "#lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "#lib/components/ui/sidebar/index.js";
 
-	let { user }: { user: { name: string; email: string; avatar: string } } = $props();
+	import { goto } from "$app/navigation";
+	import { authClient } from "#lib/auth-client.js";
+
+	let { user }: { user: { name: string; email: string; image?: string | null } } = $props();
 	const sidebar = useSidebar();
+
+	// Up to two initials, shown when the user has no picture.
+	const initials = $derived(
+		user.name
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((part) => part[0]?.toUpperCase())
+			.join("")
+	);
+
+	async function signOut() {
+		await authClient.signOut();
+		await goto("/auth/sign-in", { invalidateAll: true });
+	}
 </script>
 
 <Sidebar.Menu>
@@ -25,8 +39,10 @@
 						{...props}
 					>
 						<Avatar.Root class="size-8 rounded-lg">
-							<Avatar.Image src={user.avatar} alt={user.name} />
-							<Avatar.Fallback class="rounded-lg">CN</Avatar.Fallback>
+							{#if user.image}
+								<Avatar.Image src={user.image} alt={user.name} />
+							{/if}
+							<Avatar.Fallback class="rounded-lg">{initials}</Avatar.Fallback>
 						</Avatar.Root>
 						<div class="grid flex-1 text-start text-sm leading-tight">
 							<span class="truncate font-medium">{user.name}</span>
@@ -45,8 +61,10 @@
 				<DropdownMenu.Label class="p-0 font-normal">
 					<div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
 						<Avatar.Root class="size-8 rounded-lg">
-							<Avatar.Image src={user.avatar} alt={user.name} />
-							<Avatar.Fallback class="rounded-lg">CN</Avatar.Fallback>
+							{#if user.image}
+								<Avatar.Image src={user.image} alt={user.name} />
+							{/if}
+							<Avatar.Fallback class="rounded-lg">{initials}</Avatar.Fallback>
 						</Avatar.Root>
 						<div class="grid flex-1 text-start text-sm leading-tight">
 							<span class="truncate font-medium">{user.name}</span>
@@ -55,31 +73,9 @@
 					</div>
 				</DropdownMenu.Label>
 				<DropdownMenu.Separator />
-				<DropdownMenu.Group>
-					<DropdownMenu.Item>
-						<SparklesIcon />
-						Upgrade to Pro
-					</DropdownMenu.Item>
-				</DropdownMenu.Group>
-				<DropdownMenu.Separator />
-				<DropdownMenu.Group>
-					<DropdownMenu.Item>
-						<BadgeCheckIcon />
-						Account
-					</DropdownMenu.Item>
-					<DropdownMenu.Item>
-						<CreditCardIcon />
-						Billing
-					</DropdownMenu.Item>
-					<DropdownMenu.Item>
-						<BellIcon />
-						Notifications
-					</DropdownMenu.Item>
-				</DropdownMenu.Group>
-				<DropdownMenu.Separator />
-				<DropdownMenu.Item>
+				<DropdownMenu.Item onSelect={signOut}>
 					<LogOutIcon />
-					Log out
+					Sign out
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>

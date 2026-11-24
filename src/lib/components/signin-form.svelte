@@ -6,15 +6,41 @@
 		Field,
 		FieldLabel,
 		FieldDescription,
+		FieldError,
 		FieldSeparator,
 	} from "#lib/components/ui/field/index.js";
 	import { Input } from "#lib/components/ui/input/index.js";
 	import { cn } from "#lib/utils.js";
 	import type { HTMLAttributes } from "svelte/elements";
+	import { goto } from "$app/navigation";
+	import { authClient } from "#lib/auth-client.js";
 
 	let { class: className, ...restProps }: HTMLAttributes<HTMLDivElement> = $props();
 
 	const id = $props.id();
+
+	let email = $state("");
+	let password = $state("");
+	let error = $state("");
+	let pending = $state(false);
+
+	async function onsubmit(event: SubmitEvent) {
+		event.preventDefault();
+		error = "";
+		pending = true;
+
+		const result = await authClient.signIn.email({ email, password });
+
+		pending = false;
+
+		if (result.error) {
+			error = result.error.message ?? "Could not sign in.";
+			return;
+		}
+
+		// Reload the server data, so the guard sees the new session.
+		await goto("/", { invalidateAll: true });
+	}
 </script>
 
 <div class={cn("flex flex-col gap-6", className)} {...restProps}>
@@ -24,7 +50,7 @@
 			<!-- <Card.Description>Login with your Apple or Google account</Card.Description> -->
 		</Card.Header>
 		<Card.Content>
-			<form>
+			<form {onsubmit}>
 				<FieldGroup>
 					<!--
 					<Field>
@@ -53,7 +79,15 @@
 					-->
 					<Field>
 						<FieldLabel for="email-{id}">Email</FieldLabel>
-						<Input id="email-{id}" type="email" placeholder="m@example.com" required />
+						<Input
+							id="email-{id}"
+							name="email"
+							type="email"
+							autocomplete="email"
+							placeholder="m@example.com"
+							required
+							bind:value={email}
+						/>
 					</Field>
 					<Field>
 						<div class="flex items-center">
@@ -62,10 +96,20 @@
 								Forgot your password?
 							</a>
 						</div>
-						<Input id="password-{id}" type="password" required />
+						<Input
+							id="password-{id}"
+							name="password"
+							type="password"
+							autocomplete="current-password"
+							required
+							bind:value={password}
+						/>
 					</Field>
 					<Field>
-						<Button type="submit">Sign in</Button>
+						{#if error}
+							<FieldError>{error}</FieldError>
+						{/if}
+						<Button type="submit" disabled={pending}>Sign in</Button>
 						<FieldDescription class="text-center">
 							Don't have an account? <a href="/auth/sign-up">Sign up</a>
 						</FieldDescription>
