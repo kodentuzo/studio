@@ -1,0 +1,20 @@
+# Development only: what Studio needs next to it. `pnpm dev` starts this.
+name: studio
+
+services:
+  postgres:
+    image: postgres:18.7-trixie
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-U", "postgres"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  postgres:
