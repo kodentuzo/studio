@@ -3,6 +3,7 @@ import {
 	char,
 	check,
 	date,
+	integer,
 	numeric,
 	pgTable,
 	text,
@@ -10,6 +11,16 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
+
+// One row per stored file. The bytes are in the bucket, under `key`.
+export const files = pgTable('files', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	key: text('key').notNull().unique(),
+	name: text('name').notNull(),
+	contentType: text('content_type').notNull(),
+	size: integer('size').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
 
 // Money in and money out, one row each. A negative amount is money out, a positive one money in.
 export const transactions = pgTable(
@@ -25,6 +36,8 @@ export const transactions = pgTable(
 		source: text('source').notNull().default('manual'),
 		// 'paid' means the money has moved. 'planned' is expected and not counted yet.
 		status: text('status').notNull().default('paid'),
+		// The attached invoice or receipt, if any. A file in use cannot be deleted.
+		fileId: uuid('file_id').references(() => files.id),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [

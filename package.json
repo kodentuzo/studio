@@ -41,6 +41,7 @@
 		"vite": "^8.3.8"
 	},
 	"dependencies": {
+		"aws4fetch": "^1.0.20",
 		"better-auth": "^1.7.27",
 		"drizzle-orm": "^0.45.4",
 		"pg": "^8.23.1",

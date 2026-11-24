@@ -1,14 +1,17 @@
 import { fail } from '@sveltejs/kit';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
-import { transactions } from '#lib/server/db/schema.js';
+import { files, transactions } from '#lib/server/db/schema.js';
+import { getFile } from '#lib/server/files.js';
+import { getObject } from '#lib/server/storage.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
 	const rows = await db
-		.select()
+		.select({ ...getTableColumns(transactions), fileName: files.name })
 		.from(transactions)
+		.leftJoin(files, eq(files.id, transactions.fileId))
 		// Newest first, and the opening balance always last: it comes before everything.
 		.orderBy(
 			sql`${transactions.source} = 'opening'`,
@@ -34,13 +37,14 @@ export const load: PageServerLoad = async () => {
 };
 
 /** Checks the fields of the add and edit forms. Returns the row to save, or what is wrong. */
-function readTransaction(form: FormData) {
+async function readTransaction(form: FormData) {
 	const kind = String(form.get('kind') ?? '');
 	const date = String(form.get('date') ?? '');
 	const amount = String(form.get('amount') ?? '').trim();
 	const counterparty = String(form.get('counterparty') ?? '').trim();
 	const note = String(form.get('note') ?? '').trim();
 	const status = String(form.get('status') ?? '');
+	const fileId = String(form.get('fileId') ?? '');
 
 	if (kind !== 'expense' && kind !== 'income') {
 		return { error: 'Choose expense or income.' };
@@ -59,20 +63,26 @@ function readTransaction(form: FormData) {
 		return { error: 'Choose paid or planned.' };
 	}
 
+	// An attachment is optional. If one is named, it has to be a stored file.
+	if (fileId && !(await getFile(fileId))) {
+		return { error: 'The attached file does not exist any more. Attach it again.' };
+	}
+
 	return {
 		values: {
 			date,
 			amount: kind === 'expense' ? `-${amount}` : amount,
 			counterparty,
 			note: note || null,
-			status
+			status,
+			fileId: fileId || null
 		}
 	};
 }
 
 export const actions: Actions = {
 	add: async ({ request }) => {
-		const input = readTransaction(await request.formData());
+		const input = await readTransaction(await request.formData());
 		if ('error' in input) return fail(400, { action: 'add', error: input.error });
 
 		await db.insert(transactions).values(input.values);
@@ -88,7 +98,7 @@ export const actions: Actions = {
 			return fail(400, { action: 'edit', error: 'That transaction does not exist.' });
 		}
 
-		const input = readTransaction(form);
+		const input = await readTransaction(form);
 		if ('error' in input) return fail(400, { action: 'edit', error: input.error });
 
 		// The opening balance has its own form, so it is never changed from here.
@@ -100,17 +110,28 @@ export const actions: Actions = {
 		return { edited: true };
 	},
 
-	// Reads a PDF invoice and returns its fields. Saves nothing: the page fills in the add form
-	// with them, and the person checks and saves.
+	// Reads a stored PDF invoice and returns its fields. Saves nothing: the page fills in the
+	// add form with them, and the person checks and saves.
 	readInvoice: async ({ request }) => {
 		const form = await request.formData();
-		const file = form.get('invoice');
+		const file = await getFile(String(form.get('fileId') ?? ''));
 
-		if (!(file instanceof File)) {
-			return fail(400, { action: 'readInvoice', error: 'Choose a PDF file.' });
+		if (!file) {
+			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
+		}
+		if (file.contentType !== 'application/pdf') {
+			return fail(422, {
+				action: 'readInvoice',
+				error: 'Only PDF invoices can be read. Enter this one by hand.'
+			});
 		}
 
-		const result = await readInvoice(file);
+		const object = await getObject(file.key);
+		if (!object) {
+			return fail(404, { action: 'readInvoice', error: 'That file is missing from storage.' });
+		}
+
+		const result = await readInvoice(new Uint8Array(await object.arrayBuffer()));
 		if ('error' in result) {
 			return fail(422, { action: 'readInvoice', error: result.error });
 		}

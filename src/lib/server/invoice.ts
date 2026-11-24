@@ -14,7 +14,6 @@ export type InvoiceFields = {
 	counterparty: string;
 };
 
-const MAX_BYTES = 5 * 1024 * 1024;
 // Enough for several pages. Longer text is cut, since the totals are near the start or the end.
 const MAX_CHARS = 12_000;
 const TIMEOUT_MS = 60_000;
@@ -40,15 +39,13 @@ const schema = {
  * content, and nothing in it is acted on.
  */
 export async function readInvoice(
-	file: File
+	bytes: Uint8Array
 ): Promise<{ fields: InvoiceFields } | { error: string }> {
 	if (!AI_URL) return { error: 'Reading invoices is not set up on this Studio.' };
-	if (file.size === 0) return { error: 'Choose a PDF file.' };
-	if (file.size > MAX_BYTES) return { error: 'That file is larger than 5 MB.' };
 
 	let text: string;
 	try {
-		const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+		const pdf = await getDocumentProxy(bytes);
 		({ text } = await extractText(pdf, { mergePages: true }));
 	} catch {
 		return { error: 'That file could not be read as a PDF.' };

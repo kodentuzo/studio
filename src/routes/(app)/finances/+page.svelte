@@ -1,9 +1,11 @@
 <script lang="ts">
+	import PaperclipIcon from "@lucide/svelte/icons/paperclip";
 	import PencilIcon from "@lucide/svelte/icons/pencil";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import ReceiptIcon from "@lucide/svelte/icons/receipt";
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
-	import { enhance } from "$app/forms";
+	import XIcon from "@lucide/svelte/icons/x";
+	import { deserialize, enhance } from "$app/forms";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
@@ -31,12 +33,111 @@
 	let note = $state("");
 
 	// Which tab of the add sheet is showing: "upload" or "manual".
-	let tab = $state("manual");
+	let tab = $state("upload");
 
-	// Reading a PDF invoice into the add form.
+	// The file attached to the transaction in the form, if any.
+	let attachment = $state<{ id: string; name: string } | null>(null);
+	let attaching = $state(false);
+	let attachError = $state("");
+
+	// Uploading and reading an invoice on the upload tab.
 	let reading = $state(false);
 	let readError = $state("");
 	let readNote = $state("");
+
+	// Calls one of the page actions and gives back what it returned.
+	async function callAction(url: string, body: FormData) {
+		const response = await fetch(url, {
+			method: "POST",
+			body,
+			headers: { "x-sveltekit-action": "true", accept: "application/json" },
+		});
+		return deserialize(await response.text());
+	}
+
+	// Stores a file through the Files page's upload action.
+	async function storeFile(
+		file: File
+	): Promise<{ file: { id: string; name: string; contentType: string } } | { error: string }> {
+		const body = new FormData();
+		body.set("file", file);
+		const result = await callAction("/files?/upload", body);
+
+		if (result.type === "success" && result.data?.file) {
+			return {
+				file: result.data.file as { id: string; name: string; contentType: string },
+			};
+		}
+		return {
+			error:
+				result.type === "failure"
+					? String(result.data?.error ?? "The file could not be stored.")
+					: "The file could not be stored.",
+		};
+	}
+
+	// The upload tab: store the file, attach it, read it if it can be read, then show the form.
+	async function uploadInvoice(file: File) {
+		reading = true;
+		readError = "";
+		readNote = "";
+
+		const stored = await storeFile(file);
+		if ("error" in stored) {
+			readError = stored.error;
+			reading = false;
+			return;
+		}
+
+		attachment = { id: stored.file.id, name: stored.file.name };
+		kind = "expense";
+
+		if (data.canReadInvoices && stored.file.contentType === "application/pdf") {
+			const body = new FormData();
+			body.set("fileId", stored.file.id);
+			const result = await callAction("?/readInvoice", body);
+
+			if (result.type === "success" && result.data?.invoice) {
+				const invoice = result.data.invoice as {
+					date: string;
+					amount: string;
+					currency: string;
+					counterparty: string;
+				};
+				date = invoice.date;
+				amount = invoice.amount;
+				counterparty = invoice.counterparty;
+				readNote =
+					invoice.currency === "EUR"
+						? "Filled in from the invoice. Check the values before saving."
+						: `Filled in from the invoice, which is in ${invoice.currency}. Studio records euros, so change the amount.`;
+			} else {
+				const reason =
+					result.type === "failure" ? String(result.data?.error ?? "") : "";
+				readNote = `The file is attached. ${reason || "It could not be read, so fill in the details by hand."}`;
+			}
+		} else {
+			readNote = "The file is attached. Fill in the details by hand.";
+		}
+
+		reading = false;
+		tab = "manual";
+	}
+
+	// The attachment field on the form: store the file and attach it.
+	async function attachFile(file: File) {
+		attaching = true;
+		attachError = "";
+
+		const stored = await storeFile(file);
+		if ("error" in stored) {
+			attachError = stored.error;
+		} else {
+			attachment = { id: stored.file.id, name: stored.file.name };
+		}
+
+		attaching = false;
+	}
 
 	// The id of the row being edited, or null when adding a new one.
 	let editingId = $state<string | null>(null);
@@ -54,7 +155,9 @@
 		status = "paid";
 		readError = "";
 		readNote = "";
-		tab = data.canReadInvoices ? "upload" : "manual";
+		attachment = null;
+		attachError = "";
+		tab = "upload";
 		open = true;
 	}
 
@@ -67,6 +170,11 @@
 		counterparty = transaction.counterparty;
 		note = transaction.note ?? "";
 		status = transaction.status;
+		attachment =
+			transaction.fileId && transaction.fileName
+				? { id: transaction.fileId, name: transaction.fileName }
+				: null;
+		attachError = "";
 		open = true;
 	}
 
@@ -105,64 +213,35 @@
 </div>
 
 {#snippet uploadForm()}
-		<form
-			method="POST"
-			action="?/readInvoice"
-			enctype="multipart/form-data"
-			use:enhance={() => {
-				reading = true;
-				readError = "";
-				readNote = "";
-				// Not calling update(): nothing was saved, so the page has nothing to reload.
-				return async ({ result }) => {
-					reading = false;
-					if (result.type === "success" && result.data?.invoice) {
-						const invoice = result.data.invoice as {
-							date: string;
-							amount: string;
-							currency: string;
-							counterparty: string;
-						};
-						kind = "expense";
-						date = invoice.date;
-						amount = invoice.amount;
-						counterparty = invoice.counterparty;
-						// Show the filled-in form, to be checked and saved.
-						tab = "manual";
-						readNote =
-							invoice.currency === "EUR"
-								? "Filled in from the invoice. Check the values before saving."
-								: `Filled in from the invoice, which is in ${invoice.currency}. Studio records euros, so change the amount.`;
-					} else if (result.type === "failure") {
-						readError = String(result.data?.error ?? "The invoice could not be read.");
-					} else {
-						readError = "The invoice could not be read.";
-					}
-				};
+	<Field.Field>
+		<Field.Label for="invoice">Invoice or receipt</Field.Label>
+		<Input
+			id="invoice"
+			type="file"
+			accept="application/pdf,image/png,image/jpeg,image/webp"
+			disabled={reading}
+			onchange={(event) => {
+				const file = event.currentTarget.files?.[0];
+				if (file) uploadInvoice(file);
 			}}
-		>
-			<Field.Field>
-				<Field.Label for="invoice">Invoice</Field.Label>
-				<Input
-					id="invoice"
-					name="invoice"
-					type="file"
-					accept="application/pdf"
-					disabled={reading}
-					onchange={(event) => event.currentTarget.form?.requestSubmit()}
-				/>
-				{#if reading}
-					<Field.Description>Reading the invoice…</Field.Description>
-				{:else if readError}
-					<Field.Error>{readError}</Field.Error>
-				{:else}
-					<Field.Description>
-						A PDF with text in it. Studio reads the date, the total and the seller, then shows
-						you the form to check.
-					</Field.Description>
-				{/if}
-			</Field.Field>
-		</form>
+		/>
+		{#if reading}
+			<Field.Description>
+				{data.canReadInvoices ? "Storing and reading the file…" : "Storing the file…"}
+			</Field.Description>
+		{:else if readError}
+			<Field.Error>{readError}</Field.Error>
+		{:else if data.canReadInvoices}
+			<Field.Description>
+				The file is attached to the transaction. From a PDF with text in it, Studio also reads
+				the date, the total and the seller, then shows you the form to check.
+			</Field.Description>
+		{:else}
+			<Field.Description>
+				The file is attached to the transaction. Then you fill in the details.
+			</Field.Description>
+		{/if}
+	</Field.Field>
 {/snippet}
 
 {#snippet entryForm()}
@@ -191,6 +270,7 @@
 		{/if}
 		<input type="hidden" name="kind" value={kind} />
 		<input type="hidden" name="status" value={status} />
+		<input type="hidden" name="fileId" value={attachment?.id ?? ""} />
 		<Field.Group>
 			<Field.Field>
 				<Field.Label>Kind</Field.Label>
@@ -243,6 +323,48 @@
 				<Input id="note" name="note" type="text" bind:value={note} />
 			</Field.Field>
 			<Field.Field>
+				<Field.Label for="attachment">Attachment</Field.Label>
+				{#if attachment}
+					<div class="flex items-center gap-2">
+						<PaperclipIcon class="size-4 shrink-0 text-muted-foreground" />
+						<a
+							href="/files/{attachment.id}"
+							target="_blank"
+							rel="noopener"
+							class="truncate text-sm hover:underline"
+						>
+							{attachment.name}
+						</a>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							class="ms-auto"
+							onclick={() => (attachment = null)}
+						>
+							<XIcon />
+							<span class="sr-only">Remove attachment</span>
+						</Button>
+					</div>
+				{:else}
+					<Input
+						id="attachment"
+						type="file"
+						accept="application/pdf,image/png,image/jpeg,image/webp"
+						disabled={attaching}
+						onchange={(event) => {
+							const file = event.currentTarget.files?.[0];
+							if (file) attachFile(file);
+						}}
+					/>
+					{#if attaching}
+						<Field.Description>Storing the file…</Field.Description>
+					{:else if attachError}
+						<Field.Error>{attachError}</Field.Error>
+					{/if}
+				{/if}
+			</Field.Field>
+			<Field.Field>
 				<Field.Label>Status</Field.Label>
 				<ToggleGroup.Root
 					type="single"
@@ -277,10 +399,10 @@
 			<Sheet.Description>Money going out or coming in.</Sheet.Description>
 		</Sheet.Header>
 		<div class="flex flex-col gap-6 px-4 pb-4">
-			{#if data.canReadInvoices && !editingId}
+			{#if !editingId}
 				<Tabs.Root bind:value={tab} class="gap-6">
 					<Tabs.List class="w-full">
-						<Tabs.Trigger value="upload">Upload invoice</Tabs.Trigger>
+						<Tabs.Trigger value="upload">Upload file</Tabs.Trigger>
 						<Tabs.Trigger value="manual">Enter manually</Tabs.Trigger>
 					</Tabs.List>
 					<Tabs.Content value="upload">
@@ -440,7 +562,22 @@
 							{dateFormat.format(new Date(transaction.date))}
 						{/if}
 					</Table.Cell>
-					<Table.Cell class="font-medium">{transaction.counterparty}</Table.Cell>
+					<Table.Cell class="font-medium">
+						<span class="flex items-center gap-2">
+							{transaction.counterparty}
+							{#if transaction.fileId}
+								<a
+									href="/files/{transaction.fileId}"
+									target="_blank"
+									rel="noopener"
+									class="text-muted-foreground hover:text-foreground"
+								>
+									<PaperclipIcon class="size-4" />
+									<span class="sr-only">Open {transaction.fileName ?? "attachment"}</span>
+								</a>
+							{/if}
+						</span>
+					</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{transaction.note ?? ""}</Table.Cell>
 					<Table.Cell>
 						{#if transaction.status === "planned"}
