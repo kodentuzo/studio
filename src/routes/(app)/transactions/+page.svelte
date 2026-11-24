@@ -1,11 +1,27 @@
 <script lang="ts">
+	import PlusIcon from "@lucide/svelte/icons/plus";
 	import ReceiptIcon from "@lucide/svelte/icons/receipt";
+	import { enhance } from "$app/forms";
 	import * as Card from "#lib/components/ui/card/index.js";
+	import * as Dialog from "#lib/components/ui/dialog/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
+	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
+	import * as ToggleGroup from "#lib/components/ui/toggle-group/index.js";
+	import { Button } from "#lib/components/ui/button/index.js";
+	import { Input } from "#lib/components/ui/input/index.js";
 	import type { PageProps } from "./$types";
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+
+	const today = new Date().toISOString().slice(0, 10);
+
+	let open = $state(false);
+	let kind = $state("expense");
+	let date = $state(today);
+	let amount = $state("");
+	let counterparty = $state("");
+	let note = $state("");
 
 	function money(amount: string, currency: string) {
 		return new Intl.NumberFormat("en", {
@@ -18,7 +34,99 @@
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
 </script>
 
-<h1 class="text-2xl font-semibold">Transactions</h1>
+<div class="flex items-center justify-between gap-4">
+	<h1 class="text-2xl font-semibold">Transactions</h1>
+	<Button onclick={() => (open = true)}>
+		<PlusIcon data-icon="inline-start" />
+		Add transaction
+	</Button>
+</div>
+
+<Dialog.Root bind:open>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Add a transaction</Dialog.Title>
+			<Dialog.Description>Money going out or coming in.</Dialog.Description>
+		</Dialog.Header>
+		<form
+			method="POST"
+			action="?/add"
+			class="flex flex-col gap-6"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update({ reset: false });
+					if (result.type === "success") {
+						// Keep the kind and the date for the next one; clear the rest.
+						amount = "";
+						counterparty = "";
+						note = "";
+						open = false;
+					}
+				}}
+		>
+			<input type="hidden" name="kind" value={kind} />
+			<Field.Group>
+				<Field.Field>
+					<Field.Label>Kind</Field.Label>
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						value={kind}
+						onValueChange={(value) => {
+							// Clicking the chosen one again would clear it. Keep a choice.
+							if (value) kind = value;
+						}}
+					>
+						<ToggleGroup.Item value="expense">Expense</ToggleGroup.Item>
+						<ToggleGroup.Item value="income">Income</ToggleGroup.Item>
+					</ToggleGroup.Root>
+				</Field.Field>
+				<div class="grid grid-cols-2 gap-4">
+					<Field.Field>
+						<Field.Label for="date">Date</Field.Label>
+						<Input id="date" name="date" type="date" required bind:value={date} />
+					</Field.Field>
+					<Field.Field>
+						<Field.Label for="amount">Amount in euros</Field.Label>
+						<Input
+							id="amount"
+							name="amount"
+							type="text"
+							inputmode="decimal"
+							placeholder="7.49"
+							required
+							bind:value={amount}
+						/>
+					</Field.Field>
+				</div>
+				<Field.Field>
+					<Field.Label for="counterparty">
+						{kind === "expense" ? "Paid to" : "Received from"}
+					</Field.Label>
+					<Input
+						id="counterparty"
+						name="counterparty"
+						type="text"
+						placeholder="Hetzner"
+						required
+						bind:value={counterparty}
+					/>
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="note">Note</Field.Label>
+					<Input id="note" name="note" type="text" bind:value={note} />
+				</Field.Field>
+				{#if form?.error}
+					<Field.Error>{form.error}</Field.Error>
+				{/if}
+			</Field.Group>
+			<Dialog.Footer>
+				<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>
+				<Button type="submit">Add transaction</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <div class="grid gap-4 md:grid-cols-3">
 	<Card.Root>
@@ -48,7 +156,11 @@
 				<ReceiptIcon />
 			</Empty.Media>
 			<Empty.Title>No transactions yet</Empty.Title>
+			<Empty.Description>Add the first one to start tracking.</Empty.Description>
 		</Empty.Header>
+		<Empty.Content>
+			<Button variant="outline" onclick={() => (open = true)}>Add transaction</Button>
+		</Empty.Content>
 	</Empty.Root>
 {:else}
 	<Table.Root>
