@@ -23,12 +23,15 @@
 	let counterparty = $state("");
 	let note = $state("");
 
-	function money(amount: string, currency: string) {
-		return new Intl.NumberFormat("en", {
-			style: "currency",
-			currency,
-			signDisplay: "exceptZero",
-		}).format(Number(amount));
+	// "exceptZero" shows + and -, "negative" shows only -, "never" shows neither.
+	function money(
+		amount: string,
+		currency: string,
+		signDisplay: "exceptZero" | "negative" | "never" = "exceptZero"
+	) {
+		return new Intl.NumberFormat("en", { style: "currency", currency, signDisplay }).format(
+			Number(amount)
+		);
 	}
 
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
@@ -132,19 +135,19 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Description>Balance</Card.Description>
-			<Card.Title class="text-2xl tabular-nums">{money(data.totals.balance, "EUR")}</Card.Title>
+			<Card.Title class="text-2xl tabular-nums">{money(data.totals.balance, "EUR", "negative")}</Card.Title>
 		</Card.Header>
 	</Card.Root>
 	<Card.Root>
 		<Card.Header>
 			<Card.Description>Income</Card.Description>
-			<Card.Title class="text-2xl tabular-nums">{money(data.totals.income, "EUR")}</Card.Title>
+			<Card.Title class="text-2xl tabular-nums">{money(data.totals.income, "EUR", "never")}</Card.Title>
 		</Card.Header>
 	</Card.Root>
 	<Card.Root>
 		<Card.Header>
 			<Card.Description>Expenses</Card.Description>
-			<Card.Title class="text-2xl tabular-nums">{money(data.totals.expenses, "EUR")}</Card.Title>
+			<Card.Title class="text-2xl tabular-nums">{money(data.totals.expenses, "EUR", "never")}</Card.Title>
 		</Card.Header>
 	</Card.Root>
 </div>
