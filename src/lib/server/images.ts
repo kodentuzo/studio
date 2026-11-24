@@ -27,3 +27,39 @@ export async function imageSize(path: string): Promise<{ width: number; height: 
 		return null;
 	}
 }
+
+/**
+ * The largest square that fits in a stored image, as PNG bytes. `offset` says where along the
+ * long side the square sits: 0 is the left or top end, 0.5 the centre, 1 the right or bottom end.
+ * Null if the image cannot be read.
+ */
+export async function cropToSquare(
+	path: string,
+	offset: number
+): Promise<Uint8Array<ArrayBuffer> | null> {
+	const info = await fileInfo(path);
+	const size = await imageSize(path);
+	if (!info || !size) return null;
+
+	const side = Math.min(size.width, size.height);
+	const spare = Math.max(size.width, size.height) - side;
+	const shift = Math.round(spare * Math.min(1, Math.max(0, offset)));
+
+	try {
+		// rotate() with no angle turns a sideways photo upright first, so the square is cut from
+		// the picture as it is displayed.
+		const cropped = await sharp(info.full, { limitInputPixels: LIMIT_PIXELS })
+			.rotate()
+			.extract({
+				left: size.width > size.height ? shift : 0,
+				top: size.height > size.width ? shift : 0,
+				width: side,
+				height: side
+			})
+			.png()
+			.toBuffer();
+		return new Uint8Array(cropped);
+	} catch {
+		return null;
+	}
+}

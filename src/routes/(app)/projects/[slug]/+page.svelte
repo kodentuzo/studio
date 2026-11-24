@@ -1,10 +1,9 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
-	import { fileName, fileUrl, uploadFile } from "#lib/files.js";
+	import { callAction, fileName, fileUrl, uploadFile } from "#lib/files.js";
 	import { toWebManifest } from "#lib/manifest.js";
 	import {
-		checkIconSize,
 		ICON_RECOMMENDED_SIDE,
 		PROJECT_LINKS,
 		REQUIRED_PROJECT_LINKS,
@@ -12,6 +11,7 @@
 	import * as Alert from "#lib/components/ui/alert/index.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
+	import * as Dialog from "#lib/components/ui/dialog/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import { Input } from "#lib/components/ui/input/index.js";
@@ -30,20 +30,104 @@
 	let uploadingIcon = $state(false);
 	let iconError = $state("");
 
-	// What is wrong with the picked image's size, or null if it is fine or cannot be measured
-	// here (then the server decides).
-	async function measure(file: File): Promise<string | null> {
+	// The picked image's width and height, or null if it cannot be measured here (then the
+	// server decides when the form is saved).
+	async function dimensions(file: File): Promise<{ width: number; height: number } | null> {
 		try {
 			const bitmap = await createImageBitmap(file);
-			const problem = checkIconSize(bitmap.width, bitmap.height);
+			const size = { width: bitmap.width, height: bitmap.height };
 			bitmap.close();
-			return problem;
+			return size;
 		} catch {
 			return null;
 		}
 	}
 
-	// Stores the chosen image in the project's own folder. It becomes the icon on Save.
+	// An uploaded image that is not square, waiting to be cropped. `offset` is where the square
+	// sits along the long side: 0 is the left or top end, 0.5 the centre, 1 the other end.
+	let cropping = $state<{ path: string; width: number; height: number } | null>(null);
+	let offset = $state(0.5);
+	let cropBusy = $state(false);
+	let cropError = $state("");
+
+	// The image is drawn to fit a box this many pixels on its long side.
+	const CROP_BOX = 320;
+	const cropView = $derived.by(() => {
+		if (!cropping) return null;
+		const scale = CROP_BOX / Math.max(cropping.width, cropping.height);
+		const width = Math.round(cropping.width * scale);
+		const height = Math.round(cropping.height * scale);
+		const side = Math.min(width, height);
+		const spare = Math.max(width, height) - side;
+		const wide = width > height;
+		return {
+			width,
+			height,
+			side,
+			spare,
+			wide,
+			left: wide ? Math.round(spare * offset) : 0,
+			top: wide ? 0 : Math.round(spare * offset),
+		};
+	});
+
+	// Dragging the frame: remember where the pointer and the frame were when it started.
+	let drag: { pointer: number; offset: number } | null = null;
+
+	function startDrag(event: PointerEvent) {
+		if (!cropView) return;
+		drag = { pointer: cropView.wide ? event.clientX : event.clientY, offset };
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+	}
+
+	function moveDrag(event: PointerEvent) {
+		if (!drag || !cropView || cropView.spare === 0) return;
+		const moved = (cropView.wide ? event.clientX : event.clientY) - drag.pointer;
+		offset = Math.min(1, Math.max(0, drag.offset + moved / cropView.spare));
+	}
+
+	function nudge(event: KeyboardEvent) {
+		if (!cropView) return;
+		const back = cropView.wide ? "ArrowLeft" : "ArrowUp";
+		const forward = cropView.wide ? "ArrowRight" : "ArrowDown";
+		if (event.key !== back && event.key !== forward) return;
+		event.preventDefault();
+		offset = Math.min(1, Math.max(0, offset + (event.key === forward ? 0.05 : -0.05)));
+	}
+
+	async function confirmCrop() {
+		if (!cropping) return;
+		cropBusy = true;
+		cropError = "";
+
+		const body = new FormData();
+		body.set("path", cropping.path);
+		body.set("offset", String(offset));
+		const result = await callAction("?/cropIcon", body);
+
+		cropBusy = false;
+		if (result.type === "success" && result.data?.cropped) {
+			iconPath = String(result.data.cropped);
+			cropping = null;
+		} else {
+			cropError =
+				result.type === "failure"
+					? String(result.data?.error ?? "The image could not be cropped.")
+					: "The image could not be cropped.";
+		}
+	}
+
+	// Closing the dialog without cropping: the uploaded image is not wanted, so remove it.
+	async function cancelCrop() {
+		if (!cropping) return;
+		const body = new FormData();
+		body.set("path", cropping.path);
+		cropping = null;
+		await callAction("?/discardUpload", body);
+	}
+
+	// The chosen image is stored in the project's own folder. A square one becomes the icon on
+	// Save. Any other shape opens the crop dialog first.
 	async function chooseIcon(file: File) {
 		uploadingIcon = true;
 		iconError = "";
@@ -51,15 +135,17 @@
 		if (!file.type.startsWith("image/")) {
 			iconError = "The icon has to be an image: PNG, JPEG or WebP.";
 		} else {
-			// Measured here first, so a wrong image is refused before it is stored. The server
-			// checks again when the form is saved.
-			const problem = await measure(file);
-			if (problem) {
-				iconError = problem;
+			const size = await dimensions(file);
+			const stored = await uploadFile(file, `projects/${data.project.slug}`);
+
+			if ("error" in stored) {
+				iconError = stored.error;
+			} else if (size && size.width !== size.height) {
+				offset = 0.5;
+				cropError = "";
+				cropping = { path: stored.file.path, ...size };
 			} else {
-				const stored = await uploadFile(file, `projects/${data.project.slug}`);
-				if ("error" in stored) iconError = stored.error;
-				else iconPath = stored.file.path;
+				iconPath = stored.file.path;
 			}
 		}
 
@@ -105,6 +191,71 @@
 
 	const COLOR = /^#[0-9a-fA-F]{6}$/;
 </script>
+
+<Dialog.Root
+	open={cropping !== null}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) cancelCrop();
+	}}
+>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Crop to a square</Dialog.Title>
+			<Dialog.Description>
+				An icon has to be square. Drag the frame to choose the part to keep.
+			</Dialog.Description>
+		</Dialog.Header>
+		{#if cropping && cropView}
+			<div class="flex justify-center">
+				<div
+					class="relative overflow-hidden rounded-md bg-muted"
+					style="width: {cropView.width}px; height: {cropView.height}px;"
+				>
+					<img
+						src={fileUrl(cropping.path)}
+						alt="Before cropping"
+						class="pointer-events-none size-full select-none"
+						draggable="false"
+					/>
+					<!-- The frame: everything outside it is dimmed by its own shadow. -->
+					<div
+						role="slider"
+						tabindex="0"
+						aria-label="Crop position"
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={Math.round(offset * 100)}
+						class="absolute cursor-grab touch-none rounded-sm border-2 border-white shadow-[0_0_0_9999px_rgb(0_0_0/0.55)] outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+						style="left: {cropView.left}px; top: {cropView.top}px; width: {cropView.side}px; height: {cropView.side}px;"
+						onpointerdown={startDrag}
+						onpointermove={moveDrag}
+						onpointerup={() => (drag = null)}
+						onpointercancel={() => (drag = null)}
+						onkeydown={nudge}
+					></div>
+				</div>
+			</div>
+			<p class="text-center text-sm text-muted-foreground">
+				{cropping.width} by {cropping.height} pixels, cropped to
+				{Math.min(cropping.width, cropping.height)} by {Math.min(cropping.width, cropping.height)}.
+			</p>
+			{#if cropError}
+				<p role="alert" class="text-sm text-destructive">{cropError}</p>
+			{/if}
+		{/if}
+		<Dialog.Footer>
+			<Button type="button" variant="ghost" onclick={() => (offset = 0.5)} disabled={cropBusy}>
+				Centre
+			</Button>
+			<Button type="button" variant="outline" onclick={cancelCrop} disabled={cropBusy}>
+				Cancel
+			</Button>
+			<Button type="button" onclick={confirmCrop} disabled={cropBusy}>
+				{cropBusy ? "Cropping…" : "Crop"}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
 
 <Breadcrumb.Root>
 	<Breadcrumb.List>
@@ -184,8 +335,8 @@
 						<Field.Error>{iconError}</Field.Error>
 					{:else}
 						<Field.Description>
-							A square PNG, ideally {ICON_RECOMMENDED_SIDE} by {ICON_RECOMMENDED_SIDE} pixels. It is
-							saved with the rest of the form.
+							A square PNG, ideally {ICON_RECOMMENDED_SIDE} by {ICON_RECOMMENDED_SIDE} pixels. Another
+							shape can be cropped here. It is saved with the rest of the form.
 						</Field.Description>
 					{/if}
 				</Field.Field>

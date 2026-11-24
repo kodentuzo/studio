@@ -2,8 +2,9 @@ import { error, fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
-import { fileInfo } from '#lib/server/files.js';
-import { imageSize } from '#lib/server/images.js';
+import { isFileUsed } from '#lib/server/file-uses.js';
+import { fileInfo, removeFile, saveUpload } from '#lib/server/files.js';
+import { cropToSquare, imageSize } from '#lib/server/images.js';
 import { checkIconSize, isHttpsUrl, isProjectLinkKey, PROJECT_LINKS } from '#lib/project.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -16,7 +17,58 @@ export const load: PageServerLoad = async ({ params }) => {
 	return { project };
 };
 
+/** The project's own folder in the files folder. Icon uploads live here. */
+function projectFolder(slug: string) {
+	return `projects/${slug}`;
+}
+
+/** True for a path directly inside the project's folder: the only files these actions touch. */
+function isInProjectFolder(path: string, slug: string) {
+	const folder = `${projectFolder(slug)}/`;
+	return path.startsWith(folder) && !path.slice(folder.length).includes('/');
+}
+
 export const actions: Actions = {
+	// Cuts an uploaded image down to a square and stores the result as a new PNG. The picked
+	// image is then removed, unless something uses it. Returns the new file's path.
+	cropIcon: async ({ request, params }) => {
+		const form = await request.formData();
+		const path = String(form.get('path') ?? '');
+		const offset = Number(form.get('offset') ?? '0.5');
+		const refuse = (message: string) => fail(400, { action: 'cropIcon', error: message });
+
+		if (!isInProjectFolder(path, params.slug)) return refuse('That image is not in this project.');
+		if (!Number.isFinite(offset) || offset < 0 || offset > 1) {
+			return refuse('That crop position is not valid.');
+		}
+
+		const bytes = await cropToSquare(path, offset);
+		if (!bytes) return refuse('The image could not be read.');
+
+		const name = path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]*$/, '');
+		const stored = await saveUpload(
+			new File([bytes], `${name}-square.png`, { type: 'image/png' }),
+			projectFolder(params.slug)
+		);
+		if ('error' in stored) return refuse(stored.error);
+
+		if (!(await isFileUsed(path))) await removeFile(path);
+
+		return { cropped: stored.path };
+	},
+
+	// Removes an image that was uploaded for cropping and then not used.
+	discardUpload: async ({ request, params }) => {
+		const form = await request.formData();
+		const path = String(form.get('path') ?? '');
+
+		if (isInProjectFolder(path, params.slug) && !(await isFileUsed(path))) {
+			await removeFile(path);
+		}
+
+		return { discarded: true };
+	},
+
 	// Saves the branding fields. An emptied optional field is stored as "not set".
 	save: async ({ request, params }) => {
 		const form = await request.formData();
