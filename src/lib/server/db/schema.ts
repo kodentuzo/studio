@@ -12,7 +12,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 
-// One row per stored file. The bytes are in the bucket, under `key`.
+// One row per stored file. The bytes are on disk, at `key` inside the files folder.
 export const files = pgTable('files', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	key: text('key').notNull().unique(),

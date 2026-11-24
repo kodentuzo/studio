@@ -26,7 +26,7 @@ function sniffType(bytes: Uint8Array): string | null {
 
 export type StoredFile = typeof files.$inferSelect;
 
-/** Checks a file, puts it in the bucket and records it. */
+/** Checks a file, writes it to disk and records it. */
 export async function saveFile(file: File): Promise<{ file: StoredFile } | { error: string }> {
 	if (file.size === 0) return { error: 'Choose a file.' };
 	if (file.size > MAX_BYTES) return { error: 'That file is larger than 5 MB.' };
@@ -35,11 +35,17 @@ export async function saveFile(file: File): Promise<{ file: StoredFile } | { err
 	const contentType = sniffType(head);
 	if (!contentType) return { error: 'Only PDF, PNG, JPEG and WebP files can be stored.' };
 
-	// The key is ours alone: nothing a person typed ends up in a storage path.
-	const key = crypto.randomUUID();
 	const name = (file.name || 'file').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 200);
 
-	await putObject(key, file, contentType);
+	// Where it goes on disk: by month, with a short id so two files of the same name never
+	// collide, then the name with anything unusual replaced. For example
+	// 2026/11/3f9c1a2b-invoice-3.pdf.
+	const now = new Date();
+	const month = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+	const safeName = name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+/, '_').slice(0, 100);
+	const key = `${month}/${crypto.randomUUID().slice(0, 8)}-${safeName}`;
+
+	await putObject(key, file);
 
 	try {
 		const [row] = await db
@@ -48,7 +54,7 @@ export async function saveFile(file: File): Promise<{ file: StoredFile } | { err
 			.returning();
 		return { file: row };
 	} catch (error) {
-		// Do not leave bytes in the bucket that no row points at.
+		// Do not leave a file on disk that no row points at.
 		await deleteObject(key);
 		throw error;
 	}

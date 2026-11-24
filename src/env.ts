@@ -18,21 +18,10 @@ export const variables = defineEnvVars({
 	BETTER_AUTH_URL: {
 		description: 'The address Studio is reached at, such as http://localhost:5173.'
 	},
-	S3_ENDPOINT: {
-		description: 'The S3-style storage server files are kept on, such as http://localhost:9000.'
-	},
-	S3_BUCKET: {
-		description: 'The bucket for this Studio. It is created at start if it does not exist.'
-	},
-	S3_ACCESS_KEY_ID: {
-		description: 'The access key for the bucket.'
-	},
-	S3_SECRET_ACCESS_KEY: {
-		description: 'The secret key for the bucket.'
-	},
-	S3_REGION: {
-		description: 'The region the storage server expects in signatures.',
-		schema: (value) => value || 'us-east-1'
+	FILES_DIR: {
+		description:
+			'The folder uploaded files are kept in. It must survive restarts, so in a container it has to be a volume.',
+		schema: (value) => value || 'data/files'
 	},
 	AI_URL: {
 		description:

@@ -12,6 +12,9 @@ node_modules
 .DS_Store
 Thumbs.db
 
+# Uploaded files, in development
+/data
+
 # Env
 .env
 .env.*
