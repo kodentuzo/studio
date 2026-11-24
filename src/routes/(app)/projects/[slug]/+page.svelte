@@ -3,7 +3,12 @@
 	import { enhance } from "$app/forms";
 	import { fileName, fileUrl, uploadFile } from "#lib/files.js";
 	import { toWebManifest } from "#lib/manifest.js";
-	import { PROJECT_LINKS, REQUIRED_PROJECT_LINKS } from "#lib/project.js";
+	import {
+		checkIconSize,
+		ICON_RECOMMENDED_SIDE,
+		PROJECT_LINKS,
+		REQUIRED_PROJECT_LINKS,
+	} from "#lib/project.js";
 	import * as Alert from "#lib/components/ui/alert/index.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
@@ -25,6 +30,19 @@
 	let uploadingIcon = $state(false);
 	let iconError = $state("");
 
+	// What is wrong with the picked image's size, or null if it is fine or cannot be measured
+	// here (then the server decides).
+	async function measure(file: File): Promise<string | null> {
+		try {
+			const bitmap = await createImageBitmap(file);
+			const problem = checkIconSize(bitmap.width, bitmap.height);
+			bitmap.close();
+			return problem;
+		} catch {
+			return null;
+		}
+	}
+
 	// Stores the chosen image in the project's own folder. It becomes the icon on Save.
 	async function chooseIcon(file: File) {
 		uploadingIcon = true;
@@ -33,9 +51,16 @@
 		if (!file.type.startsWith("image/")) {
 			iconError = "The icon has to be an image: PNG, JPEG or WebP.";
 		} else {
-			const stored = await uploadFile(file, `projects/${data.project.slug}`);
-			if ("error" in stored) iconError = stored.error;
-			else iconPath = stored.file.path;
+			// Measured here first, so a wrong image is refused before it is stored. The server
+			// checks again when the form is saved.
+			const problem = await measure(file);
+			if (problem) {
+				iconError = problem;
+			} else {
+				const stored = await uploadFile(file, `projects/${data.project.slug}`);
+				if ("error" in stored) iconError = stored.error;
+				else iconPath = stored.file.path;
+			}
 		}
 
 		uploadingIcon = false;
@@ -159,7 +184,8 @@
 						<Field.Error>{iconError}</Field.Error>
 					{:else}
 						<Field.Description>
-							A square image, at least 512 pixels wide. It is saved with the rest of the form.
+							A square PNG, ideally {ICON_RECOMMENDED_SIDE} by {ICON_RECOMMENDED_SIDE} pixels. It is
+							saved with the rest of the form.
 						</Field.Description>
 					{/if}
 				</Field.Field>

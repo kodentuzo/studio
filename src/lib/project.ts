@@ -40,3 +40,17 @@ export function isHttpsUrl(value: string) {
 		return false;
 	}
 }
+
+// What a project's icon has to be. One image is the source for every icon an app needs, so it
+// has to be square, large enough to scale down from, and not so large it is unsafe to open.
+export const ICON_MIN_SIDE = 512;
+export const ICON_MAX_SIDE = 4096;
+export const ICON_RECOMMENDED_SIDE = 1024;
+
+/** What is wrong with an icon of this size, or null if it is fine. */
+export function checkIconSize(width: number, height: number): string | null {
+	if (width !== height) {
+		return `The icon has to be square. This image is ${width} by ${height} pixels.`;
+	}
+	return null;
+}

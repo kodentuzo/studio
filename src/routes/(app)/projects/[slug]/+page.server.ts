@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
 import { fileInfo } from '#lib/server/files.js';
-import { isHttpsUrl, isProjectLinkKey, PROJECT_LINKS } from '#lib/project.js';
+import { imageSize } from '#lib/server/images.js';
+import { checkIconSize, isHttpsUrl, isProjectLinkKey, PROJECT_LINKS } from '#lib/project.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -48,6 +49,12 @@ export const actions: Actions = {
 			if (!info.contentType.startsWith('image/')) {
 				return refuse('The icon has to be an image: PNG, JPEG or WebP.');
 			}
+
+			const size = await imageSize(iconPath);
+			if (!size) return refuse('The icon could not be read as an image.');
+
+			const problem = checkIconSize(size.width, size.height);
+			if (problem) return refuse(problem);
 		}
 
 		const [saved] = await db
