@@ -15,6 +15,13 @@
       "when": 1795526947995,
       "tag": "0001_opening_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795529476810,
+      "tag": "0002_transaction_status",
+      "breakpoints": true
     }
   ]
 }

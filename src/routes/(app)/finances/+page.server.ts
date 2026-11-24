@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -15,15 +15,17 @@ export const load: PageServerLoad = async () => {
 			desc(transactions.createdAt)
 		);
 
-	// Summed in Postgres, where decimals are exact. The opening balance counts toward the
-	// balance, but it is neither income nor an expense.
+	// Summed in Postgres, where decimals are exact. Only paid rows count: planned ones have not
+	// happened yet. The opening balance counts toward the balance, but it is neither income nor
+	// an expense.
 	const [totals] = await db
 		.select({
 			balance: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
 			income: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and ${transactions.source} <> 'opening'), 0)`,
 			expenses: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} < 0 and ${transactions.source} <> 'opening'), 0)`
 		})
-		.from(transactions);
+		.from(transactions)
+		.where(eq(transactions.status, 'paid'));
 
 	const opening = rows.find((row) => row.source === 'opening') ?? null;
 
@@ -38,6 +40,7 @@ export const actions: Actions = {
 		const amount = String(form.get('amount') ?? '').trim();
 		const counterparty = String(form.get('counterparty') ?? '').trim();
 		const note = String(form.get('note') ?? '').trim();
+		const status = String(form.get('status') ?? '');
 
 		if (kind !== 'expense' && kind !== 'income') {
 			return fail(400, { action: 'add', error: 'Choose expense or income.' });
@@ -52,15 +55,36 @@ export const actions: Actions = {
 		if (!counterparty) {
 			return fail(400, { action: 'add', error: 'Say who was paid, or who paid.' });
 		}
+		if (status !== 'paid' && status !== 'planned') {
+			return fail(400, { action: 'add', error: 'Choose paid or planned.' });
+		}
 
 		await db.insert(transactions).values({
 			date,
 			amount: kind === 'expense' ? `-${amount}` : amount,
 			counterparty,
-			note: note || null
+			note: note || null,
+			status
 		});
 
 		return { added: true };
+	},
+
+	// Turns a planned row into a paid one, once the money has moved.
+	markPaid: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+
+		if (!/^[0-9a-f-]{36}$/i.test(id)) {
+			return fail(400, { action: 'markPaid', error: 'That transaction does not exist.' });
+		}
+
+		await db
+			.update(transactions)
+			.set({ status: 'paid' })
+			.where(and(eq(transactions.id, id), eq(transactions.status, 'planned')));
+
+		return { markedPaid: true };
 	},
 
 	// Sets, changes or clears the one opening balance row.

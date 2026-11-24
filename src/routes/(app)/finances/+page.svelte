@@ -9,6 +9,7 @@
 	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
 	import * as ToggleGroup from "#lib/components/ui/toggle-group/index.js";
+	import { Badge } from "#lib/components/ui/badge/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import { Input } from "#lib/components/ui/input/index.js";
 	import type { PageProps } from "./$types";
@@ -19,6 +20,7 @@
 
 	let open = $state(false);
 	let kind = $state("expense");
+	let status = $state("paid");
 	let date = $state(today);
 	let amount = $state("");
 	let counterparty = $state("");
@@ -73,11 +75,13 @@
 						amount = "";
 						counterparty = "";
 						note = "";
+						status = "paid";
 						open = false;
 					}
 				}}
 		>
 			<input type="hidden" name="kind" value={kind} />
+			<input type="hidden" name="status" value={status} />
 			<Field.Group>
 				<Field.Field>
 					<Field.Label>Kind</Field.Label>
@@ -128,6 +132,23 @@
 				<Field.Field>
 					<Field.Label for="note">Note</Field.Label>
 					<Input id="note" name="note" type="text" bind:value={note} />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label>Status</Field.Label>
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						value={status}
+						onValueChange={(value) => {
+							if (value) status = value;
+						}}
+					>
+						<ToggleGroup.Item value="paid">Paid</ToggleGroup.Item>
+						<ToggleGroup.Item value="planned">Planned</ToggleGroup.Item>
+					</ToggleGroup.Root>
+					<Field.Description>
+						A planned transaction is listed but not counted until it is paid.
+					</Field.Description>
 				</Field.Field>
 				{#if form?.action === "add" && form.error}
 					<Field.Error>{form.error}</Field.Error>
@@ -237,6 +258,7 @@
 				<Table.Head>Date</Table.Head>
 				<Table.Head>Who</Table.Head>
 				<Table.Head>Note</Table.Head>
+				<Table.Head>Status</Table.Head>
 				<Table.Head class="text-end">Amount</Table.Head>
 			</Table.Row>
 		</Table.Header>
@@ -250,6 +272,17 @@
 					</Table.Cell>
 					<Table.Cell class="font-medium">{transaction.counterparty}</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{transaction.note ?? ""}</Table.Cell>
+					<Table.Cell>
+						{#if transaction.status === "planned"}
+							<form method="POST" action="?/markPaid" use:enhance class="flex items-center gap-2">
+								<input type="hidden" name="id" value={transaction.id} />
+								<Badge variant="outline">Planned</Badge>
+								<Button type="submit" variant="ghost" size="sm">Mark paid</Button>
+							</form>
+						{:else if transaction.source !== "opening"}
+							<Badge variant="secondary">Paid</Badge>
+						{/if}
+					</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">
 						{money(
 							transaction.amount,

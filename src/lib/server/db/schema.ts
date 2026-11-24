@@ -23,10 +23,13 @@ export const transactions = pgTable(
 		note: text('note'),
 		// Where the row came from: 'manual', or 'opening' for the one opening balance row.
 		source: text('source').notNull().default('manual'),
+		// 'paid' means the money has moved. 'planned' is expected and not counted yet.
+		status: text('status').notNull().default('paid'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [
 		check('transactions_amount_not_zero', sql`${table.amount} <> 0`),
+		check('transactions_status_known', sql`${table.status} in ('planned', 'paid')`),
 		// There is at most one opening balance.
 		uniqueIndex('transactions_one_opening')
 			.on(table.source)

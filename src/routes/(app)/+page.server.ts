@@ -1,4 +1,4 @@
-import { and, gte, lte, ne, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
 import type { PageServerLoad } from './$types';
@@ -8,7 +8,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export const load: PageServerLoad = async () => {
 	const year = new Date().getUTCFullYear();
 
-	// Income and expenses per month of this year. The opening balance is neither.
+	// Income and expenses per month of this year, paid rows only. The opening balance is neither.
 	const rows = await db
 		.select({
 			month: sql<number>`extract(month from ${transactions.date})::int`,
@@ -20,7 +20,8 @@ export const load: PageServerLoad = async () => {
 			and(
 				gte(transactions.date, `${year}-01-01`),
 				lte(transactions.date, `${year}-12-31`),
-				ne(transactions.source, 'opening')
+				ne(transactions.source, 'opening'),
+				eq(transactions.status, 'paid')
 			)
 		)
 		.groupBy(sql`1`);

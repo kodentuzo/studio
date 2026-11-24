@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD COLUMN "status" text DEFAULT 'paid' NOT NULL;--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_status_known" CHECK ("transactions"."status" in ('planned', 'paid'));
