@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "transactions_one_opening" ON "transactions" USING btree ("source") WHERE "transactions"."source" = 'opening';

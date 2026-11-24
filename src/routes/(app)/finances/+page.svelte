@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PencilIcon from "@lucide/svelte/icons/pencil";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import ReceiptIcon from "@lucide/svelte/icons/receipt";
 	import { enhance } from "$app/forms";
@@ -22,6 +23,15 @@
 	let amount = $state("");
 	let counterparty = $state("");
 	let note = $state("");
+
+	let openingOpen = $state(false);
+	let openingAmount = $state("");
+
+	function editOpening() {
+		// Start from what is saved, or from nothing.
+		openingAmount = data.opening ? String(Number(data.opening.amount)) : "";
+		openingOpen = true;
+	}
 
 	// "exceptZero" shows + and -, "negative" shows only -, "never" shows neither.
 	function money(
@@ -119,7 +129,7 @@
 					<Field.Label for="note">Note</Field.Label>
 					<Input id="note" name="note" type="text" bind:value={note} />
 				</Field.Field>
-				{#if form?.error}
+				{#if form?.action === "add" && form.error}
 					<Field.Error>{form.error}</Field.Error>
 				{/if}
 			</Field.Group>
@@ -135,7 +145,15 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Description>Balance</Card.Description>
-			<Card.Title class="text-2xl tabular-nums">{money(data.totals.balance, "EUR", "negative")}</Card.Title>
+			<Card.Title class="text-2xl tabular-nums">
+				{money(data.totals.balance, "EUR", "negative")}
+			</Card.Title>
+			<Card.Action>
+				<Button variant="ghost" size="icon" onclick={editOpening}>
+					<PencilIcon />
+					<span class="sr-only">Edit opening balance</span>
+				</Button>
+			</Card.Action>
 		</Card.Header>
 	</Card.Root>
 	<Card.Root>
@@ -151,6 +169,51 @@
 		</Card.Header>
 	</Card.Root>
 </div>
+
+<Dialog.Root bind:open={openingOpen}>
+	<Dialog.Content class="sm:max-w-sm">
+		<Dialog.Header>
+			<Dialog.Title>Opening balance</Dialog.Title>
+			<Dialog.Description>
+				What you had before the first transaction here. Set it to 0 to remove it.
+			</Dialog.Description>
+		</Dialog.Header>
+		<form
+			method="POST"
+			action="?/opening"
+			class="flex flex-col gap-6"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update({ reset: false });
+					if (result.type === "success") openingOpen = false;
+				}}
+		>
+			<Field.Group>
+				<Field.Field>
+					<Field.Label for="opening-amount">Amount in euros</Field.Label>
+					<Input
+						id="opening-amount"
+						name="amount"
+						type="text"
+						inputmode="decimal"
+						placeholder="100"
+						required
+						bind:value={openingAmount}
+					/>
+				</Field.Field>
+				{#if form?.action === "opening" && form.error}
+					<Field.Error>{form.error}</Field.Error>
+				{/if}
+			</Field.Group>
+			<Dialog.Footer>
+				<Button type="button" variant="outline" onclick={() => (openingOpen = false)}>
+					Cancel
+				</Button>
+				<Button type="submit">Save</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <h2 class="text-lg font-semibold">Transactions</h2>
 
@@ -180,11 +243,19 @@
 		<Table.Body>
 			{#each data.transactions as transaction (transaction.id)}
 				<Table.Row>
-					<Table.Cell>{dateFormat.format(new Date(transaction.date))}</Table.Cell>
+					<Table.Cell>
+						{#if transaction.source !== "opening"}
+							{dateFormat.format(new Date(transaction.date))}
+						{/if}
+					</Table.Cell>
 					<Table.Cell class="font-medium">{transaction.counterparty}</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{transaction.note ?? ""}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">
-						{money(transaction.amount, transaction.currency)}
+						{money(
+							transaction.amount,
+							transaction.currency,
+							transaction.source === "opening" ? "negative" : "exceptZero"
+						)}
 					</Table.Cell>
 				</Table.Row>
 			{/each}
