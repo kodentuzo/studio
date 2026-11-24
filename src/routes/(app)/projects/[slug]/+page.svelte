@@ -2,6 +2,7 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
 	import { fileName, fileUrl, uploadFile } from "#lib/files.js";
+	import { toWebManifest } from "#lib/manifest.js";
 	import { PROJECT_LINKS, REQUIRED_PROJECT_LINKS } from "#lib/project.js";
 	import * as Alert from "#lib/components/ui/alert/index.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
@@ -47,6 +48,9 @@
 	let links = $state<Record<string, string>>({});
 	let savingLinks = $state(false);
 	let savedLinks = $state(false);
+
+	// What the saved branding becomes. It follows the saved project, not what is being typed.
+	const manifest = $derived(JSON.stringify(toWebManifest(data.project), null, 2));
 
 	// The links a project should have, that the saved project does not.
 	const missingLinks = $derived(
@@ -310,5 +314,23 @@
 				{/if}
 			</div>
 		</form>
+	</Card.Content>
+</Card.Root>
+
+<Card.Root class="max-w-2xl">
+	<Card.Header>
+		<Card.Title>Web manifest</Card.Title>
+		<Card.Description>
+			What the saved branding becomes: the file a browser reads to install the app. It updates
+			when you save.
+		</Card.Description>
+	</Card.Header>
+	<Card.Content>
+		<pre class="overflow-x-auto rounded-lg bg-muted p-4 text-sm"><code>{manifest}</code></pre>
+		{#if data.project.iconPath}
+			<p class="text-sm text-muted-foreground">
+				The icon entry is a placeholder. Studio does not yet make the icon files an app serves.
+			</p>
+		{/if}
 	</Card.Content>
 </Card.Root>
