@@ -181,7 +181,7 @@
 						</a>
 					</Table.Cell>
 					<Table.Cell>
-						{#if file.uses.length === 0}
+						{#if file.uses.length === 0 && file.iconOf.length === 0}
 							<Badge variant="outline">Unused</Badge>
 						{:else}
 							<div class="flex flex-col gap-1">
@@ -190,13 +190,18 @@
 										{use.counterparty}, {useDateFormat.format(new Date(use.date))}
 									</a>
 								{/each}
+								{#each file.iconOf as project (project.slug)}
+									<a href="/projects/{project.slug}" class="hover:underline">
+										Icon of {project.name}
+									</a>
+								{/each}
 							</div>
 						{/if}
 					</Table.Cell>
 					<Table.Cell>{dateFormat.format(file.modified)}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">{size(file.size)}</Table.Cell>
 					<Table.Cell class="text-end">
-						{#if file.uses.length === 0}
+						{#if file.uses.length === 0 && file.iconOf.length === 0}
 							<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
 								<TrashIcon />
 								<span class="sr-only">Delete</span>

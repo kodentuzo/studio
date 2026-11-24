@@ -2,6 +2,7 @@
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import { enhance } from "$app/forms";
+	import { fileUrl } from "#lib/files.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Sheet from "#lib/components/ui/sheet/index.js";
@@ -136,7 +137,22 @@
 			{#each data.projects as project (project.id)}
 				<Table.Row>
 					<Table.Cell class="font-medium">
-						<a href="/projects/{project.slug}" class="hover:underline">{project.name}</a>
+						<a href="/projects/{project.slug}" class="flex items-center gap-3 hover:underline">
+							{#if project.iconPath}
+								<img
+									src={fileUrl(project.iconPath)}
+									alt=""
+									class="size-8 rounded-lg border object-cover"
+								/>
+							{:else}
+								<span
+									class="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground"
+								>
+									<AppWindowIcon class="size-4" />
+								</span>
+							{/if}
+							{project.name}
+						</a>
 					</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{project.slug}</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{project.description ?? ""}</Table.Cell>

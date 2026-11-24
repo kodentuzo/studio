@@ -1,5 +1,7 @@
 <script lang="ts">
+	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
+	import { fileName, fileUrl, uploadFile } from "#lib/files.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
@@ -15,6 +17,26 @@
 	let description = $state("");
 	let themeColor = $state("");
 	let backgroundColor = $state("");
+	let iconPath = $state("");
+
+	let uploadingIcon = $state(false);
+	let iconError = $state("");
+
+	// Stores the chosen image in the project's own folder. It becomes the icon on Save.
+	async function chooseIcon(file: File) {
+		uploadingIcon = true;
+		iconError = "";
+
+		if (!file.type.startsWith("image/")) {
+			iconError = "The icon has to be an image: PNG, JPEG or WebP.";
+		} else {
+			const stored = await uploadFile(file, `projects/${data.project.slug}`);
+			if ("error" in stored) iconError = stored.error;
+			else iconPath = stored.file.path;
+		}
+
+		uploadingIcon = false;
+	}
 
 	let saving = $state(false);
 	let saved = $state(false);
@@ -31,6 +53,8 @@
 		description = project.description ?? "";
 		themeColor = project.themeColor ?? "";
 		backgroundColor = project.backgroundColor ?? "";
+		iconPath = project.iconPath ?? "";
+		iconError = "";
 		saved = false;
 	});
 
@@ -74,7 +98,51 @@
 				};
 			}}
 		>
+			<input type="hidden" name="iconPath" value={iconPath} />
 			<Field.Group>
+				<Field.Field>
+					<Field.Label for="icon">Icon</Field.Label>
+					{#if iconPath}
+						<div class="flex items-center gap-3">
+							<img
+								src={fileUrl(iconPath)}
+								alt="The project's icon"
+								class="size-16 rounded-xl border object-cover"
+							/>
+							<span class="truncate text-sm text-muted-foreground">{fileName(iconPath)}</span>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								class="ms-auto"
+								onclick={() => (iconPath = "")}
+							>
+								<XIcon />
+								<span class="sr-only">Remove icon</span>
+							</Button>
+						</div>
+					{:else}
+						<Input
+							id="icon"
+							type="file"
+							accept="image/png,image/jpeg,image/webp"
+							disabled={uploadingIcon}
+							onchange={(event) => {
+								const file = event.currentTarget.files?.[0];
+								if (file) chooseIcon(file);
+							}}
+						/>
+					{/if}
+					{#if uploadingIcon}
+						<Field.Description>Storing the image…</Field.Description>
+					{:else if iconError}
+						<Field.Error>{iconError}</Field.Error>
+					{:else}
+						<Field.Description>
+							A square image, at least 512 pixels wide. It is saved with the rest of the form.
+						</Field.Description>
+					{/if}
+				</Field.Field>
 				<Field.Field>
 					<Field.Label for="name">Name</Field.Label>
 					<Input id="name" name="name" type="text" maxlength={45} required bind:value={name} />

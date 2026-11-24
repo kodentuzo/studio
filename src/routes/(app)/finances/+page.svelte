@@ -5,8 +5,8 @@
 	import ReceiptIcon from "@lucide/svelte/icons/receipt";
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import XIcon from "@lucide/svelte/icons/x";
-	import { deserialize, enhance } from "$app/forms";
-	import { fileName, fileUrl } from "#lib/files.js";
+	import { enhance } from "$app/forms";
+	import { callAction, fileName, fileUrl, uploadFile } from "#lib/files.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
@@ -46,44 +46,13 @@
 	let readError = $state("");
 	let readNote = $state("");
 
-	// Calls one of the page actions and gives back what it returned.
-	async function callAction(url: string, body: FormData) {
-		const response = await fetch(url, {
-			method: "POST",
-			body,
-			headers: { "x-sveltekit-action": "true", accept: "application/json" },
-		});
-		return deserialize(await response.text());
-	}
-
-	// Stores a file through the Files page's upload action.
-	async function storeFile(
-		file: File
-	): Promise<{ file: { path: string; name: string; contentType: string } } | { error: string }> {
-		const body = new FormData();
-		body.set("file", file);
-		const result = await callAction("/files?/upload", body);
-
-		if (result.type === "success" && result.data?.file) {
-			return {
-				file: result.data.file as { path: string; name: string; contentType: string },
-			};
-		}
-		return {
-			error:
-				result.type === "failure"
-					? String(result.data?.error ?? "The file could not be stored.")
-					: "The file could not be stored.",
-		};
-	}
-
 	// The upload tab: store the file, attach it, read it if it can be read, then show the form.
 	async function uploadInvoice(file: File) {
 		reading = true;
 		readError = "";
 		readNote = "";
 
-		const stored = await storeFile(file);
+		const stored = await uploadFile(file);
 		if ("error" in stored) {
 			readError = stored.error;
 			reading = false;
@@ -130,7 +99,7 @@
 		attaching = true;
 		attachError = "";
 
-		const stored = await storeFile(file);
+		const stored = await uploadFile(file);
 		if ("error" in stored) {
 			attachError = stored.error;
 		} else {

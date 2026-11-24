@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
+import { fileInfo } from '#lib/server/files.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -22,6 +23,7 @@ export const actions: Actions = {
 		const description = String(form.get('description') ?? '').trim();
 		const themeColor = String(form.get('themeColor') ?? '').trim();
 		const backgroundColor = String(form.get('backgroundColor') ?? '').trim();
+		const iconPath = String(form.get('iconPath') ?? '');
 
 		const refuse = (message: string) => fail(400, { action: 'save', error: message });
 
@@ -38,6 +40,15 @@ export const actions: Actions = {
 			return refuse('The background colour has to look like #ffffff.');
 		}
 
+		// The icon is optional. If one is named, it has to be an image in the files folder.
+		if (iconPath) {
+			const info = await fileInfo(iconPath);
+			if (!info) return refuse('The icon file does not exist any more. Upload it again.');
+			if (!info.contentType.startsWith('image/')) {
+				return refuse('The icon has to be an image: PNG, JPEG or WebP.');
+			}
+		}
+
 		const [saved] = await db
 			.update(projects)
 			.set({
@@ -46,6 +57,7 @@ export const actions: Actions = {
 				description: description || null,
 				themeColor: themeColor ? themeColor.toLowerCase() : null,
 				backgroundColor: backgroundColor ? backgroundColor.toLowerCase() : null,
+				iconPath: iconPath || null,
 				updatedAt: new Date()
 			})
 			.where(eq(projects.slug, params.slug))

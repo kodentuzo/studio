@@ -1,7 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
-import { transactions } from '#lib/server/db/schema.js';
+import { projects, transactions } from '#lib/server/db/schema.js';
 import { listFolder, removeFile, saveUpload } from '#lib/server/files.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -23,6 +23,14 @@ export const load: PageServerLoad = async ({ url }) => {
 				.where(inArray(transactions.filePath, paths))
 		: [];
 
+	// And which are a project's icon.
+	const icons = paths.length
+		? await db
+				.select({ slug: projects.slug, name: projects.name, iconPath: projects.iconPath })
+				.from(projects)
+				.where(inArray(projects.iconPath, paths))
+		: [];
+
 	return {
 		dir: listing.dir,
 		folders: listing.folders,
@@ -30,7 +38,10 @@ export const load: PageServerLoad = async ({ url }) => {
 			...file,
 			uses: uses
 				.filter((use) => use.filePath === file.path)
-				.map(({ id, date, counterparty }) => ({ id, date, counterparty }))
+				.map(({ id, date, counterparty }) => ({ id, date, counterparty })),
+			iconOf: icons
+				.filter((icon) => icon.iconPath === file.path)
+				.map(({ slug, name }) => ({ slug, name }))
 		}))
 	};
 };
@@ -66,6 +77,18 @@ export const actions: Actions = {
 			return fail(409, {
 				action: 'remove',
 				error: 'That file is attached to a transaction. Detach it first.'
+			});
+		}
+
+		const [icon] = await db
+			.select({ name: projects.name })
+			.from(projects)
+			.where(eq(projects.iconPath, path))
+			.limit(1);
+		if (icon) {
+			return fail(409, {
+				action: 'remove',
+				error: `That file is the icon of ${icon.name}. Remove it there first.`
 			});
 		}
 
