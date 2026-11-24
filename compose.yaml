@@ -16,5 +16,20 @@ services:
       timeout: 2s
       retries: 15
 
+  registry:
+    image: registry:3.1.2
+    environment:
+      OTEL_TRACES_EXPORTER: none # no tracing; without this it logs export errors
+    ports:
+      - 127.0.0.1:5001:5000 # 5001 on the host: macOS keeps 5000 for AirPlay
+    volumes:
+      - registry:/var/lib/registry
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5000/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
 volumes:
   postgres:
+  registry:
