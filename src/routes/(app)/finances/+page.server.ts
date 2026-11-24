@@ -32,42 +32,71 @@ export const load: PageServerLoad = async () => {
 	return { transactions: rows, totals, opening };
 };
 
-export const actions: Actions = {
-	add: async ({ request }) => {
-		const form = await request.formData();
-		const kind = String(form.get('kind') ?? '');
-		const date = String(form.get('date') ?? '');
-		const amount = String(form.get('amount') ?? '').trim();
-		const counterparty = String(form.get('counterparty') ?? '').trim();
-		const note = String(form.get('note') ?? '').trim();
-		const status = String(form.get('status') ?? '');
+/** Checks the fields of the add and edit forms. Returns the row to save, or what is wrong. */
+function readTransaction(form: FormData) {
+	const kind = String(form.get('kind') ?? '');
+	const date = String(form.get('date') ?? '');
+	const amount = String(form.get('amount') ?? '').trim();
+	const counterparty = String(form.get('counterparty') ?? '').trim();
+	const note = String(form.get('note') ?? '').trim();
+	const status = String(form.get('status') ?? '');
 
-		if (kind !== 'expense' && kind !== 'income') {
-			return fail(400, { action: 'add', error: 'Choose expense or income.' });
-		}
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
-			return fail(400, { action: 'add', error: 'Enter a valid date.' });
-		}
-		// A positive number with at most two decimals. The sign comes from the kind.
-		if (!/^\d{1,10}(\.\d{1,2})?$/.test(amount) || Number(amount) === 0) {
-			return fail(400, { action: 'add', error: 'Enter an amount above zero, such as 7.49.' });
-		}
-		if (!counterparty) {
-			return fail(400, { action: 'add', error: 'Say who was paid, or who paid.' });
-		}
-		if (status !== 'paid' && status !== 'planned') {
-			return fail(400, { action: 'add', error: 'Choose paid or planned.' });
-		}
+	if (kind !== 'expense' && kind !== 'income') {
+		return { error: 'Choose expense or income.' };
+	}
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
+		return { error: 'Enter a valid date.' };
+	}
+	// A positive number with at most two decimals. The sign comes from the kind.
+	if (!/^\d{1,10}(\.\d{1,2})?$/.test(amount) || Number(amount) === 0) {
+		return { error: 'Enter an amount above zero, such as 7.49.' };
+	}
+	if (!counterparty) {
+		return { error: 'Say who was paid, or who paid.' };
+	}
+	if (status !== 'paid' && status !== 'planned') {
+		return { error: 'Choose paid or planned.' };
+	}
 
-		await db.insert(transactions).values({
+	return {
+		values: {
 			date,
 			amount: kind === 'expense' ? `-${amount}` : amount,
 			counterparty,
 			note: note || null,
 			status
-		});
+		}
+	};
+}
+
+export const actions: Actions = {
+	add: async ({ request }) => {
+		const input = readTransaction(await request.formData());
+		if ('error' in input) return fail(400, { action: 'add', error: input.error });
+
+		await db.insert(transactions).values(input.values);
 
 		return { added: true };
+	},
+
+	edit: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+
+		if (!/^[0-9a-f-]{36}$/i.test(id)) {
+			return fail(400, { action: 'edit', error: 'That transaction does not exist.' });
+		}
+
+		const input = readTransaction(form);
+		if ('error' in input) return fail(400, { action: 'edit', error: input.error });
+
+		// The opening balance has its own form, so it is never changed from here.
+		await db
+			.update(transactions)
+			.set(input.values)
+			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')));
+
+		return { edited: true };
 	},
 
 	// Turns a planned row into a paid one, once the money has moved.

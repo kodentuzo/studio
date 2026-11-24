@@ -26,6 +26,35 @@
 	let counterparty = $state("");
 	let note = $state("");
 
+	// The id of the row being edited, or null when adding a new one.
+	let editingId = $state<string | null>(null);
+
+	function startAdd() {
+		if (editingId) {
+			// The fields still hold the row that was last edited. Start clean.
+			kind = "expense";
+			date = today;
+		}
+		editingId = null;
+		amount = "";
+		counterparty = "";
+		note = "";
+		status = "paid";
+		open = true;
+	}
+
+	function startEdit(transaction: (typeof data.transactions)[number]) {
+		editingId = transaction.id;
+		kind = Number(transaction.amount) < 0 ? "expense" : "income";
+		// Shown without the sign, and without trailing zeros: 7.49, 50.
+		amount = String(Math.abs(Number(transaction.amount)));
+		date = transaction.date;
+		counterparty = transaction.counterparty;
+		note = transaction.note ?? "";
+		status = transaction.status;
+		open = true;
+	}
+
 	let openingOpen = $state(false);
 	let openingAmount = $state("");
 
@@ -51,7 +80,7 @@
 
 <div class="flex items-center justify-between gap-4">
 	<h1 class="text-2xl font-semibold">Finances</h1>
-	<Button onclick={() => (open = true)}>
+	<Button onclick={startAdd}>
 		<PlusIcon data-icon="inline-start" />
 		Add transaction
 	</Button>
@@ -60,12 +89,12 @@
 <Dialog.Root bind:open>
 	<Dialog.Content class="sm:max-w-md">
 		<Dialog.Header>
-			<Dialog.Title>Add a transaction</Dialog.Title>
+			<Dialog.Title>{editingId ? "Edit transaction" : "Add a transaction"}</Dialog.Title>
 			<Dialog.Description>Money going out or coming in.</Dialog.Description>
 		</Dialog.Header>
 		<form
 			method="POST"
-			action="?/add"
+			action={editingId ? "?/edit" : "?/add"}
 			class="flex flex-col gap-6"
 			use:enhance={() =>
 				async ({ result, update }) => {
@@ -80,6 +109,9 @@
 					}
 				}}
 		>
+			{#if editingId}
+				<input type="hidden" name="id" value={editingId} />
+			{/if}
 			<input type="hidden" name="kind" value={kind} />
 			<input type="hidden" name="status" value={status} />
 			<Field.Group>
@@ -150,13 +182,13 @@
 						A planned transaction is listed but not counted until it is paid.
 					</Field.Description>
 				</Field.Field>
-				{#if form?.action === "add" && form.error}
+				{#if (form?.action === "add" || form?.action === "edit") && form.error}
 					<Field.Error>{form.error}</Field.Error>
 				{/if}
 			</Field.Group>
 			<Dialog.Footer>
 				<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>
-				<Button type="submit">Add transaction</Button>
+				<Button type="submit">{editingId ? "Save changes" : "Add transaction"}</Button>
 			</Dialog.Footer>
 		</form>
 	</Dialog.Content>
@@ -248,7 +280,7 @@
 			<Empty.Description>Add the first one to start tracking.</Empty.Description>
 		</Empty.Header>
 		<Empty.Content>
-			<Button variant="outline" onclick={() => (open = true)}>Add transaction</Button>
+			<Button variant="outline" onclick={startAdd}>Add transaction</Button>
 		</Empty.Content>
 	</Empty.Root>
 {:else}
@@ -260,6 +292,7 @@
 				<Table.Head>Note</Table.Head>
 				<Table.Head>Status</Table.Head>
 				<Table.Head class="text-end">Amount</Table.Head>
+				<Table.Head><span class="sr-only">Actions</span></Table.Head>
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
@@ -289,6 +322,18 @@
 							transaction.currency,
 							transaction.source === "opening" ? "negative" : "exceptZero"
 						)}
+					</Table.Cell>
+					<Table.Cell class="text-end">
+						<!-- The opening balance is edited from the Balance card. -->
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={() =>
+								transaction.source === "opening" ? editOpening() : startEdit(transaction)}
+						>
+							<PencilIcon />
+							<span class="sr-only">Edit</span>
+						</Button>
 					</Table.Cell>
 				</Table.Row>
 			{/each}
