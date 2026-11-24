@@ -35,7 +35,7 @@
 </script>
 
 <div class="flex items-center justify-between gap-4">
-	<h1 class="text-2xl font-semibold">Transactions</h1>
+	<h1 class="text-2xl font-semibold">Finances</h1>
 	<Button onclick={() => (open = true)}>
 		<PlusIcon data-icon="inline-start" />
 		Add transaction
@@ -148,6 +148,8 @@
 		</Card.Header>
 	</Card.Root>
 </div>
+
+<h2 class="text-lg font-semibold">Transactions</h2>
 
 {#if data.transactions.length === 0}
 	<Empty.Root>
