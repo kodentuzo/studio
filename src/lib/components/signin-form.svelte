@@ -110,9 +110,6 @@
 							<FieldError>{error}</FieldError>
 						{/if}
 						<Button type="submit" disabled={pending}>Sign in</Button>
-						<FieldDescription class="text-center">
-							Don't have an account? <a href="/auth/sign-up">Sign up</a>
-						</FieldDescription>
 					</Field>
 				</FieldGroup>
 			</form>

@@ -15,13 +15,13 @@
 			Studio
 		</a>
 		<Card.Root>
-			<Card.Header class="text-center">
+			<Card.Header class="gap-2 text-center">
 				<Card.Title class="text-xl">Forgot your password?</Card.Title>
 				<Card.Description>Ask your admin to reset it.</Card.Description>
 			</Card.Header>
-			<Card.Content>
-				<Button href="/auth/sign-in" class="w-full">Back to sign in</Button>
-			</Card.Content>
+			<Card.Footer>
+				<Button href="/auth/sign-in" variant="outline" class="w-full">Back to sign in</Button>
+			</Card.Footer>
 		</Card.Root>
 	</div>
 </div>
