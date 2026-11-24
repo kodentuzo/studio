@@ -9,7 +9,9 @@
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
+	import * as Sheet from "#lib/components/ui/sheet/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
+	import * as Tabs from "#lib/components/ui/tabs/index.js";
 	import * as ToggleGroup from "#lib/components/ui/toggle-group/index.js";
 	import { Badge } from "#lib/components/ui/badge/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
@@ -27,6 +29,9 @@
 	let amount = $state("");
 	let counterparty = $state("");
 	let note = $state("");
+
+	// Which tab of the add sheet is showing: "upload" or "manual".
+	let tab = $state("manual");
 
 	// Reading a PDF invoice into the add form.
 	let reading = $state(false);
@@ -49,6 +54,7 @@
 		status = "paid";
 		readError = "";
 		readNote = "";
+		tab = data.canReadInvoices ? "upload" : "manual";
 		open = true;
 	}
 
@@ -98,170 +104,198 @@
 	</Button>
 </div>
 
-<Dialog.Root bind:open>
-	<Dialog.Content class="sm:max-w-md">
-		<Dialog.Header>
-			<Dialog.Title>{editingId ? "Edit transaction" : "Add a transaction"}</Dialog.Title>
-			<Dialog.Description>Money going out or coming in.</Dialog.Description>
-		</Dialog.Header>
-		{#if data.canReadInvoices && !editingId}
-			<form
-				method="POST"
-				action="?/readInvoice"
-				enctype="multipart/form-data"
-				use:enhance={() => {
-					reading = true;
-					readError = "";
-					readNote = "";
-					// Not calling update(): nothing was saved, so the page has nothing to reload.
-					return async ({ result }) => {
-						reading = false;
-						if (result.type === "success" && result.data?.invoice) {
-							const invoice = result.data.invoice as {
-								date: string;
-								amount: string;
-								currency: string;
-								counterparty: string;
-							};
-							kind = "expense";
-							date = invoice.date;
-							amount = invoice.amount;
-							counterparty = invoice.counterparty;
-							readNote =
-								invoice.currency === "EUR"
-									? "Filled in from the invoice. Check the values before saving."
-									: `Filled in from the invoice, which is in ${invoice.currency}. Studio records euros, so change the amount.`;
-						} else if (result.type === "failure") {
-							readError = String(result.data?.error ?? "The invoice could not be read.");
-						} else {
-							readError = "The invoice could not be read.";
-						}
-					};
-				}}
-			>
-				<Field.Field>
-					<Field.Label for="invoice">Fill in from a PDF invoice</Field.Label>
-					<Input
-						id="invoice"
-						name="invoice"
-						type="file"
-						accept="application/pdf"
-						disabled={reading}
-						onchange={(event) => event.currentTarget.form?.requestSubmit()}
-					/>
-					{#if reading}
-						<Field.Description>Reading the invoice…</Field.Description>
-					{:else if readError}
-						<Field.Error>{readError}</Field.Error>
-					{:else if readNote}
-						<Field.Description>{readNote}</Field.Description>
-					{:else}
-						<Field.Description>Optional. It fills in the fields below for you to check.</Field.Description>
-					{/if}
-				</Field.Field>
-			</form>
-		{/if}
+{#snippet uploadForm()}
 		<form
 			method="POST"
-			action={editingId ? "?/edit" : "?/add"}
-			class="flex flex-col gap-6"
-			use:enhance={() =>
-				async ({ result, update }) => {
-					await update({ reset: false });
-					if (result.type === "success") {
-						// Keep the kind and the date for the next one; clear the rest.
-						amount = "";
-						counterparty = "";
-						note = "";
-						status = "paid";
-						open = false;
+			action="?/readInvoice"
+			enctype="multipart/form-data"
+			use:enhance={() => {
+				reading = true;
+				readError = "";
+				readNote = "";
+				// Not calling update(): nothing was saved, so the page has nothing to reload.
+				return async ({ result }) => {
+					reading = false;
+					if (result.type === "success" && result.data?.invoice) {
+						const invoice = result.data.invoice as {
+							date: string;
+							amount: string;
+							currency: string;
+							counterparty: string;
+						};
+						kind = "expense";
+						date = invoice.date;
+						amount = invoice.amount;
+						counterparty = invoice.counterparty;
+						// Show the filled-in form, to be checked and saved.
+						tab = "manual";
+						readNote =
+							invoice.currency === "EUR"
+								? "Filled in from the invoice. Check the values before saving."
+								: `Filled in from the invoice, which is in ${invoice.currency}. Studio records euros, so change the amount.`;
+					} else if (result.type === "failure") {
+						readError = String(result.data?.error ?? "The invoice could not be read.");
+					} else {
+						readError = "The invoice could not be read.";
 					}
-				}}
+				};
+			}}
 		>
-			{#if editingId}
-				<input type="hidden" name="id" value={editingId} />
-			{/if}
-			<input type="hidden" name="kind" value={kind} />
-			<input type="hidden" name="status" value={status} />
-			<Field.Group>
+			<Field.Field>
+				<Field.Label for="invoice">Invoice</Field.Label>
+				<Input
+					id="invoice"
+					name="invoice"
+					type="file"
+					accept="application/pdf"
+					disabled={reading}
+					onchange={(event) => event.currentTarget.form?.requestSubmit()}
+				/>
+				{#if reading}
+					<Field.Description>Reading the invoice…</Field.Description>
+				{:else if readError}
+					<Field.Error>{readError}</Field.Error>
+				{:else}
+					<Field.Description>
+						A PDF with text in it. Studio reads the date, the total and the seller, then shows
+						you the form to check.
+					</Field.Description>
+				{/if}
+			</Field.Field>
+		</form>
+{/snippet}
+
+{#snippet entryForm()}
+	<form
+		method="POST"
+		action={editingId ? "?/edit" : "?/add"}
+		class="flex flex-col gap-6"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update({ reset: false });
+				if (result.type === "success") {
+					// Keep the kind and the date for the next one; clear the rest.
+					amount = "";
+					counterparty = "";
+					note = "";
+					status = "paid";
+					open = false;
+				}
+			}}
+	>
+		{#if readNote && !editingId}
+			<Field.Description>{readNote}</Field.Description>
+		{/if}
+		{#if editingId}
+			<input type="hidden" name="id" value={editingId} />
+		{/if}
+		<input type="hidden" name="kind" value={kind} />
+		<input type="hidden" name="status" value={status} />
+		<Field.Group>
+			<Field.Field>
+				<Field.Label>Kind</Field.Label>
+				<ToggleGroup.Root
+					type="single"
+					variant="outline"
+					value={kind}
+					onValueChange={(value) => {
+						// Clicking the chosen one again would clear it. Keep a choice.
+						if (value) kind = value;
+					}}
+				>
+					<ToggleGroup.Item value="expense">Expense</ToggleGroup.Item>
+					<ToggleGroup.Item value="income">Income</ToggleGroup.Item>
+				</ToggleGroup.Root>
+			</Field.Field>
+			<div class="grid grid-cols-2 gap-4">
 				<Field.Field>
-					<Field.Label>Kind</Field.Label>
-					<ToggleGroup.Root
-						type="single"
-						variant="outline"
-						value={kind}
-						onValueChange={(value) => {
-							// Clicking the chosen one again would clear it. Keep a choice.
-							if (value) kind = value;
-						}}
-					>
-						<ToggleGroup.Item value="expense">Expense</ToggleGroup.Item>
-						<ToggleGroup.Item value="income">Income</ToggleGroup.Item>
-					</ToggleGroup.Root>
+					<Field.Label for="date">Date</Field.Label>
+					<Input id="date" name="date" type="date" required bind:value={date} />
 				</Field.Field>
-				<div class="grid grid-cols-2 gap-4">
-					<Field.Field>
-						<Field.Label for="date">Date</Field.Label>
-						<Input id="date" name="date" type="date" required bind:value={date} />
-					</Field.Field>
-					<Field.Field>
-						<Field.Label for="amount">Amount in euros</Field.Label>
-						<Input
-							id="amount"
-							name="amount"
-							type="text"
-							inputmode="decimal"
-							placeholder="7.49"
-							required
-							bind:value={amount}
-						/>
-					</Field.Field>
-				</div>
 				<Field.Field>
-					<Field.Label for="counterparty">
-						{kind === "expense" ? "Paid to" : "Received from"}
-					</Field.Label>
+					<Field.Label for="amount">Amount in euros</Field.Label>
 					<Input
-						id="counterparty"
-						name="counterparty"
+						id="amount"
+						name="amount"
 						type="text"
-						placeholder="Hetzner"
+						inputmode="decimal"
+						placeholder="7.49"
 						required
-						bind:value={counterparty}
+						bind:value={amount}
 					/>
 				</Field.Field>
-				<Field.Field>
-					<Field.Label for="note">Note</Field.Label>
-					<Input id="note" name="note" type="text" bind:value={note} />
-				</Field.Field>
-				<Field.Field>
-					<Field.Label>Status</Field.Label>
-					<ToggleGroup.Root
-						type="single"
-						variant="outline"
-						value={status}
-						onValueChange={(value) => {
-							if (value) status = value;
-						}}
-					>
-						<ToggleGroup.Item value="paid">Paid</ToggleGroup.Item>
-						<ToggleGroup.Item value="planned">Planned</ToggleGroup.Item>
-					</ToggleGroup.Root>
-					<Field.Description>
-						A planned transaction is listed but not counted until it is paid.
-					</Field.Description>
-				</Field.Field>
-				{#if (form?.action === "add" || form?.action === "edit") && form.error}
-					<Field.Error>{form.error}</Field.Error>
-				{/if}
-			</Field.Group>
-			<Dialog.Footer>
-				<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>
-				<Button type="submit">{editingId ? "Save changes" : "Add transaction"}</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+			</div>
+			<Field.Field>
+				<Field.Label for="counterparty">
+					{kind === "expense" ? "Paid to" : "Received from"}
+				</Field.Label>
+				<Input
+					id="counterparty"
+					name="counterparty"
+					type="text"
+					placeholder="Hetzner"
+					required
+					bind:value={counterparty}
+				/>
+			</Field.Field>
+			<Field.Field>
+				<Field.Label for="note">Note</Field.Label>
+				<Input id="note" name="note" type="text" bind:value={note} />
+			</Field.Field>
+			<Field.Field>
+				<Field.Label>Status</Field.Label>
+				<ToggleGroup.Root
+					type="single"
+					variant="outline"
+					value={status}
+					onValueChange={(value) => {
+						if (value) status = value;
+					}}
+				>
+					<ToggleGroup.Item value="paid">Paid</ToggleGroup.Item>
+					<ToggleGroup.Item value="planned">Planned</ToggleGroup.Item>
+				</ToggleGroup.Root>
+				<Field.Description>
+					A planned transaction is listed but not counted until it is paid.
+				</Field.Description>
+			</Field.Field>
+			{#if (form?.action === "add" || form?.action === "edit") && form.error}
+				<Field.Error>{form.error}</Field.Error>
+			{/if}
+		</Field.Group>
+		<div class="flex justify-end gap-2">
+			<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>
+			<Button type="submit">{editingId ? "Save changes" : "Add transaction"}</Button>
+		</div>
+	</form>
+{/snippet}
+
+<Sheet.Root bind:open>
+	<Sheet.Content side="right" class="w-full overflow-y-auto sm:max-w-md">
+		<Sheet.Header>
+			<Sheet.Title>{editingId ? "Edit transaction" : "Add a transaction"}</Sheet.Title>
+			<Sheet.Description>Money going out or coming in.</Sheet.Description>
+		</Sheet.Header>
+		<div class="flex flex-col gap-6 px-4 pb-4">
+			{#if data.canReadInvoices && !editingId}
+				<Tabs.Root bind:value={tab} class="gap-6">
+					<Tabs.List class="w-full">
+						<Tabs.Trigger value="upload">Upload invoice</Tabs.Trigger>
+						<Tabs.Trigger value="manual">Enter manually</Tabs.Trigger>
+					</Tabs.List>
+					<Tabs.Content value="upload">
+						{@render uploadForm()}
+					</Tabs.Content>
+					<Tabs.Content value="manual">
+						{@render entryForm()}
+					</Tabs.Content>
+				</Tabs.Root>
+			{:else}
+				{@render entryForm()}
+			{/if}
+		</div>
+	</Sheet.Content>
+</Sheet.Root>
 
 <div class="grid gap-4 md:grid-cols-3">
 	<Card.Root>
