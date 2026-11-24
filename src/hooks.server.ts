@@ -6,7 +6,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { auth } from '#lib/server/auth.js';
 import { db } from '#lib/server/db/index.js';
-import { ensureStorage } from '#lib/server/storage.js';
+import { ensureStorage } from '#lib/server/files.js';
 
 // Runs once when the server starts: creates or updates the tables.
 export const init: ServerInit = async () => {

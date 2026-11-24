@@ -1,70 +1,77 @@
-import { fail } from '@sveltejs/kit';
-import { deleteFile, listFiles, saveFile } from '#lib/server/files.js';
+import { error, fail } from '@sveltejs/kit';
+import { eq, inArray } from 'drizzle-orm';
+import { db } from '#lib/server/db/index.js';
+import { transactions } from '#lib/server/db/schema.js';
+import { listFolder, removeFile, saveUpload } from '#lib/server/files.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
-	const rows = await listFiles();
+export const load: PageServerLoad = async ({ url }) => {
+	const listing = await listFolder(url.searchParams.get('dir') ?? '');
+	if (!listing) error(404, 'That folder does not exist.');
 
-	// One entry per file, with every transaction that uses it.
-	const byId = new Map<
-		string,
-		{
-			id: string;
-			name: string;
-			contentType: string;
-			size: number;
-			createdAt: Date;
-			uses: { id: string; date: string; counterparty: string }[];
-		}
-	>();
+	// Which of these files a transaction points at.
+	const paths = listing.files.map((file) => file.path);
+	const uses = paths.length
+		? await db
+				.select({
+					id: transactions.id,
+					date: transactions.date,
+					counterparty: transactions.counterparty,
+					filePath: transactions.filePath
+				})
+				.from(transactions)
+				.where(inArray(transactions.filePath, paths))
+		: [];
 
-	for (const row of rows) {
-		let file = byId.get(row.id);
-		if (!file) {
-			file = {
-				id: row.id,
-				name: row.name,
-				contentType: row.contentType,
-				size: row.size,
-				createdAt: row.createdAt,
-				uses: []
-			};
-			byId.set(row.id, file);
-		}
-		if (row.transactionId && row.transactionDate && row.transactionCounterparty) {
-			file.uses.push({
-				id: row.transactionId,
-				date: row.transactionDate,
-				counterparty: row.transactionCounterparty
-			});
-		}
-	}
-
-	return { files: [...byId.values()] };
+	return {
+		dir: listing.dir,
+		folders: listing.folders,
+		files: listing.files.map((file) => ({
+			...file,
+			uses: uses
+				.filter((use) => use.filePath === file.path)
+				.map(({ id, date, counterparty }) => ({ id, date, counterparty }))
+		}))
+	};
 };
 
 export const actions: Actions = {
-	// Stores one file. Also used by the transaction sheet, which then attaches it.
+	// Stores one file. With `dir` it goes into that folder; the transaction sheet sends none,
+	// and the file goes into this month's folder.
 	upload: async ({ request }) => {
 		const form = await request.formData();
 		const file = form.get('file');
+		const dir = form.get('dir');
 
 		if (!(file instanceof File)) {
 			return fail(400, { action: 'upload', error: 'Choose a file.' });
 		}
 
-		const result = await saveFile(file);
+		const result = await saveUpload(file, typeof dir === 'string' ? dir : undefined);
 		if ('error' in result) return fail(422, { action: 'upload', error: result.error });
 
-		const { id, name, contentType, size } = result.file;
-		return { file: { id, name, contentType, size } };
+		return { file: result };
 	},
 
 	remove: async ({ request }) => {
 		const form = await request.formData();
-		const result = await deleteFile(String(form.get('id') ?? ''));
+		const path = String(form.get('path') ?? '');
 
-		if ('error' in result) return fail(409, { action: 'remove', error: result.error });
+		const [use] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(eq(transactions.filePath, path))
+			.limit(1);
+		if (use) {
+			return fail(409, {
+				action: 'remove',
+				error: 'That file is attached to a transaction. Detach it first.'
+			});
+		}
+
+		if (!(await removeFile(path))) {
+			return fail(404, { action: 'remove', error: 'That file does not exist.' });
+		}
 
 		return { removed: true };
 	}

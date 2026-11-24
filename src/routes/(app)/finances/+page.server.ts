@@ -1,17 +1,15 @@
 import { fail } from '@sveltejs/kit';
-import { and, desc, eq, getTableColumns, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
-import { files, transactions } from '#lib/server/db/schema.js';
-import { getFile } from '#lib/server/files.js';
-import { getObject } from '#lib/server/storage.js';
+import { transactions } from '#lib/server/db/schema.js';
+import { fileInfo, readFileBytes } from '#lib/server/files.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
 	const rows = await db
-		.select({ ...getTableColumns(transactions), fileName: files.name })
+		.select()
 		.from(transactions)
-		.leftJoin(files, eq(files.id, transactions.fileId))
 		// Newest first, and the opening balance always last: it comes before everything.
 		.orderBy(
 			sql`${transactions.source} = 'opening'`,
@@ -44,7 +42,7 @@ async function readTransaction(form: FormData) {
 	const counterparty = String(form.get('counterparty') ?? '').trim();
 	const note = String(form.get('note') ?? '').trim();
 	const status = String(form.get('status') ?? '');
-	const fileId = String(form.get('fileId') ?? '');
+	const filePath = String(form.get('filePath') ?? '');
 
 	if (kind !== 'expense' && kind !== 'income') {
 		return { error: 'Choose expense or income.' };
@@ -63,8 +61,8 @@ async function readTransaction(form: FormData) {
 		return { error: 'Choose paid or planned.' };
 	}
 
-	// An attachment is optional. If one is named, it has to be a stored file.
-	if (fileId && !(await getFile(fileId))) {
+	// An attachment is optional. If one is named, it has to be a file in the files folder.
+	if (filePath && !(await fileInfo(filePath))) {
 		return { error: 'The attached file does not exist any more. Attach it again.' };
 	}
 
@@ -75,7 +73,7 @@ async function readTransaction(form: FormData) {
 			counterparty,
 			note: note || null,
 			status,
-			fileId: fileId || null
+			filePath: filePath || null
 		}
 	};
 }
@@ -114,24 +112,25 @@ export const actions: Actions = {
 	// add form with them, and the person checks and saves.
 	readInvoice: async ({ request }) => {
 		const form = await request.formData();
-		const file = await getFile(String(form.get('fileId') ?? ''));
+		const path = String(form.get('filePath') ?? '');
 
-		if (!file) {
+		const info = await fileInfo(path);
+		if (!info) {
 			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
-		if (file.contentType !== 'application/pdf') {
+		if (info.contentType !== 'application/pdf') {
 			return fail(422, {
 				action: 'readInvoice',
 				error: 'Only PDF invoices can be read. Enter this one by hand.'
 			});
 		}
 
-		const object = await getObject(file.key);
-		if (!object) {
-			return fail(404, { action: 'readInvoice', error: 'That file is missing from storage.' });
+		const bytes = await readFileBytes(path);
+		if (!bytes) {
+			return fail(404, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
 
-		const result = await readInvoice(new Uint8Array(await object.arrayBuffer()));
+		const result = await readInvoice(bytes);
 		if ('error' in result) {
 			return fail(422, { action: 'readInvoice', error: result.error });
 		}

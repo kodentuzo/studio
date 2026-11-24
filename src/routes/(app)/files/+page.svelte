@@ -1,9 +1,12 @@
 <script lang="ts">
 	import FileIcon from "@lucide/svelte/icons/file";
+	import FolderIcon from "@lucide/svelte/icons/folder";
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import UploadIcon from "@lucide/svelte/icons/upload";
 	import { enhance } from "$app/forms";
+	import { fileUrl } from "#lib/files.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
+	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
 	import { Badge } from "#lib/components/ui/badge/index.js";
@@ -18,6 +21,14 @@
 	// The unused file waiting for a yes or no on deleting it.
 	let deleting = $state<(typeof data.files)[number] | null>(null);
 
+	// The folders leading to this one, for the trail at the top: 2026, then 2026/11.
+	const trail = $derived(
+		data.dir
+			.split("/")
+			.filter(Boolean)
+			.map((name, index, parts) => ({ name, path: parts.slice(0, index + 1).join("/") }))
+	);
+
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
 	const useDateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
 
@@ -25,6 +36,10 @@
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
 		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	}
+
+	function folderUrl(path: string) {
+		return path ? `/files?dir=${encodeURIComponent(path)}` : "/files";
 	}
 </script>
 
@@ -42,6 +57,7 @@
 			};
 		}}
 	>
+		<input type="hidden" name="dir" value={data.dir} />
 		<input
 			bind:this={picker}
 			type="file"
@@ -53,10 +69,32 @@
 		/>
 		<Button type="button" disabled={uploading} onclick={() => picker?.click()}>
 			<UploadIcon data-icon="inline-start" />
-			{uploading ? "Uploading…" : "Upload file"}
+			{uploading ? "Uploading…" : "Upload here"}
 		</Button>
 	</form>
 </div>
+
+<Breadcrumb.Root>
+	<Breadcrumb.List>
+		<Breadcrumb.Item>
+			{#if trail.length === 0}
+				<Breadcrumb.Page>Files</Breadcrumb.Page>
+			{:else}
+				<Breadcrumb.Link href="/files">Files</Breadcrumb.Link>
+			{/if}
+		</Breadcrumb.Item>
+		{#each trail as part, index (part.path)}
+			<Breadcrumb.Separator />
+			<Breadcrumb.Item>
+				{#if index === trail.length - 1}
+					<Breadcrumb.Page>{part.name}</Breadcrumb.Page>
+				{:else}
+					<Breadcrumb.Link href={folderUrl(part.path)}>{part.name}</Breadcrumb.Link>
+				{/if}
+			</Breadcrumb.Item>
+		{/each}
+	</Breadcrumb.List>
+</Breadcrumb.Root>
 
 {#if form?.error}
 	<p role="alert" class="text-sm text-destructive">{form.error}</p>
@@ -86,7 +124,7 @@
 					deleting = null;
 				}}
 		>
-			<input type="hidden" name="id" value={deleting?.id ?? ""} />
+			<input type="hidden" name="path" value={deleting?.path ?? ""} />
 			<AlertDialog.Footer>
 				<AlertDialog.Cancel type="button">Cancel</AlertDialog.Cancel>
 				<AlertDialog.Action type="submit" variant="destructive">Delete</AlertDialog.Action>
@@ -95,15 +133,15 @@
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
-{#if data.files.length === 0}
+{#if data.folders.length === 0 && data.files.length === 0}
 	<Empty.Root>
 		<Empty.Header>
 			<Empty.Media variant="icon">
-				<FileIcon />
+				<FolderIcon />
 			</Empty.Media>
-			<Empty.Title>No files yet</Empty.Title>
+			<Empty.Title>{data.dir ? "This folder is empty" : "No files yet"}</Empty.Title>
 			<Empty.Description>
-				Invoices and receipts attached to transactions are kept here.
+				Invoices and receipts attached to transactions are kept here, by month.
 			</Empty.Description>
 		</Empty.Header>
 	</Empty.Root>
@@ -113,16 +151,32 @@
 			<Table.Row>
 				<Table.Head>Name</Table.Head>
 				<Table.Head>Used by</Table.Head>
-				<Table.Head>Uploaded</Table.Head>
+				<Table.Head>Changed</Table.Head>
 				<Table.Head class="text-end">Size</Table.Head>
 				<Table.Head><span class="sr-only">Actions</span></Table.Head>
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
-			{#each data.files as file (file.id)}
+			{#each data.folders as folder (folder.path)}
+				<Table.Row>
+					<Table.Cell class="font-medium" colspan={5}>
+						<a href={folderUrl(folder.path)} class="flex items-center gap-2 hover:underline">
+							<FolderIcon class="size-4 text-muted-foreground" />
+							{folder.name}
+						</a>
+					</Table.Cell>
+				</Table.Row>
+			{/each}
+			{#each data.files as file (file.path)}
 				<Table.Row>
 					<Table.Cell class="font-medium">
-						<a href="/files/{file.id}" target="_blank" rel="noopener" class="hover:underline">
+						<a
+							href={fileUrl(file.path)}
+							target="_blank"
+							rel="noopener"
+							class="flex items-center gap-2 hover:underline"
+						>
+							<FileIcon class="size-4 text-muted-foreground" />
 							{file.name}
 						</a>
 					</Table.Cell>
@@ -139,7 +193,7 @@
 							</div>
 						{/if}
 					</Table.Cell>
-					<Table.Cell>{dateFormat.format(file.createdAt)}</Table.Cell>
+					<Table.Cell>{dateFormat.format(file.modified)}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">{size(file.size)}</Table.Cell>
 					<Table.Cell class="text-end">
 						{#if file.uses.length === 0}

@@ -6,6 +6,7 @@
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { deserialize, enhance } from "$app/forms";
+	import { fileName, fileUrl } from "#lib/files.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
@@ -36,7 +37,7 @@
 	let tab = $state("upload");
 
 	// The file attached to the transaction in the form, if any.
-	let attachment = $state<{ id: string; name: string } | null>(null);
+	let attachment = $state<{ path: string; name: string } | null>(null);
 	let attaching = $state(false);
 	let attachError = $state("");
 
@@ -58,14 +59,14 @@
 	// Stores a file through the Files page's upload action.
 	async function storeFile(
 		file: File
-	): Promise<{ file: { id: string; name: string; contentType: string } } | { error: string }> {
+	): Promise<{ file: { path: string; name: string; contentType: string } } | { error: string }> {
 		const body = new FormData();
 		body.set("file", file);
 		const result = await callAction("/files?/upload", body);
 
 		if (result.type === "success" && result.data?.file) {
 			return {
-				file: result.data.file as { id: string; name: string; contentType: string },
+				file: result.data.file as { path: string; name: string; contentType: string },
 			};
 		}
 		return {
@@ -89,12 +90,12 @@
 			return;
 		}
 
-		attachment = { id: stored.file.id, name: stored.file.name };
+		attachment = { path: stored.file.path, name: stored.file.name };
 		kind = "expense";
 
 		if (data.canReadInvoices && stored.file.contentType === "application/pdf") {
 			const body = new FormData();
-			body.set("fileId", stored.file.id);
+			body.set("filePath", stored.file.path);
 			const result = await callAction("?/readInvoice", body);
 
 			if (result.type === "success" && result.data?.invoice) {
@@ -133,7 +134,7 @@
 		if ("error" in stored) {
 			attachError = stored.error;
 		} else {
-			attachment = { id: stored.file.id, name: stored.file.name };
+			attachment = { path: stored.file.path, name: stored.file.name };
 		}
 
 		attaching = false;
@@ -170,10 +171,9 @@
 		counterparty = transaction.counterparty;
 		note = transaction.note ?? "";
 		status = transaction.status;
-		attachment =
-			transaction.fileId && transaction.fileName
-				? { id: transaction.fileId, name: transaction.fileName }
-				: null;
+		attachment = transaction.filePath
+			? { path: transaction.filePath, name: fileName(transaction.filePath) }
+			: null;
 		attachError = "";
 		open = true;
 	}
@@ -270,7 +270,7 @@
 		{/if}
 		<input type="hidden" name="kind" value={kind} />
 		<input type="hidden" name="status" value={status} />
-		<input type="hidden" name="fileId" value={attachment?.id ?? ""} />
+		<input type="hidden" name="filePath" value={attachment?.path ?? ""} />
 		<Field.Group>
 			<Field.Field>
 				<Field.Label>Kind</Field.Label>
@@ -328,7 +328,7 @@
 					<div class="flex items-center gap-2">
 						<PaperclipIcon class="size-4 shrink-0 text-muted-foreground" />
 						<a
-							href="/files/{attachment.id}"
+							href={fileUrl(attachment.path)}
 							target="_blank"
 							rel="noopener"
 							class="truncate text-sm hover:underline"
@@ -565,15 +565,15 @@
 					<Table.Cell class="font-medium">
 						<span class="flex items-center gap-2">
 							{transaction.counterparty}
-							{#if transaction.fileId}
+							{#if transaction.filePath}
 								<a
-									href="/files/{transaction.fileId}"
+									href={fileUrl(transaction.filePath)}
 									target="_blank"
 									rel="noopener"
 									class="text-muted-foreground hover:text-foreground"
 								>
 									<PaperclipIcon class="size-4" />
-									<span class="sr-only">Open {transaction.fileName ?? "attachment"}</span>
+									<span class="sr-only">Open {fileName(transaction.filePath)}</span>
 								</a>
 							{/if}
 						</span>

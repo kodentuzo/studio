@@ -29,6 +29,20 @@
       "when": 1795533596448,
       "tag": "0003_files",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795536373248,
+      "tag": "0004_file_path",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795536373568,
+      "tag": "0005_drop_files_table",
+      "breakpoints": true
     }
   ]
 }
