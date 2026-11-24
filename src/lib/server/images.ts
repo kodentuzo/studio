@@ -3,19 +3,23 @@ import { ICON_MAX_SIDE } from '#lib/project.js';
 import { fileInfo } from './files.js';
 
 // Refuse to unpack anything larger than the largest icon Studio accepts. An image is unpacked
-// at four bytes per pixel, and a small file can claim to be enormous.
+// at four bytes per pixel, and a small file can claim to be enormous. This guards every place
+// that reads pixels. Reading only the size (below) never unpacks anything.
 const LIMIT_PIXELS = ICON_MAX_SIDE * ICON_MAX_SIDE;
 
 /**
  * The width and height of a stored image, the way it is displayed (a photo's rotation flag is
- * applied). Null if the file is not there, is not an image, or is too large to open safely.
+ * applied). Null if the file is not there or is not an image.
+ *
+ * Only the file's header is read, so this is safe on an image of any claimed size: that is how
+ * a too-large image gets reported as too large, with its size, and not as unreadable.
  */
 export async function imageSize(path: string): Promise<{ width: number; height: number } | null> {
 	const info = await fileInfo(path);
 	if (!info || !info.contentType.startsWith('image/')) return null;
 
 	try {
-		const meta = await sharp(info.full, { limitInputPixels: LIMIT_PIXELS }).metadata();
+		const meta = await sharp(info.full, { limitInputPixels: false }).metadata();
 		if (!meta.width || !meta.height) return null;
 
 		// Orientations 5 to 8 mean the picture is stored on its side.

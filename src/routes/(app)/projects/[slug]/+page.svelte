@@ -4,6 +4,8 @@
 	import { callAction, fileName, fileUrl, uploadFile } from "#lib/files.js";
 	import { toWebManifest } from "#lib/manifest.js";
 	import {
+		checkIconSource,
+		ICON_MIN_SIDE,
 		ICON_RECOMMENDED_SIDE,
 		PROJECT_LINKS,
 		REQUIRED_PROJECT_LINKS,
@@ -135,17 +137,25 @@
 		if (!file.type.startsWith("image/")) {
 			iconError = "The icon has to be an image: PNG, JPEG or WebP.";
 		} else {
+			// Measured here first, so an image that can never be an icon is refused before it is
+			// stored. The server checks again when cropping and when saving.
 			const size = await dimensions(file);
-			const stored = await uploadFile(file, `projects/${data.project.slug}`);
+			const problem = size ? checkIconSource(size.width, size.height) : null;
 
-			if ("error" in stored) {
-				iconError = stored.error;
-			} else if (size && size.width !== size.height) {
-				offset = 0.5;
-				cropError = "";
-				cropping = { path: stored.file.path, ...size };
+			if (problem) {
+				iconError = problem;
 			} else {
-				iconPath = stored.file.path;
+				const stored = await uploadFile(file, `projects/${data.project.slug}`);
+
+				if ("error" in stored) {
+					iconError = stored.error;
+				} else if (size && size.width !== size.height) {
+					offset = 0.5;
+					cropError = "";
+					cropping = { path: stored.file.path, ...size };
+				} else {
+					iconPath = stored.file.path;
+				}
 			}
 		}
 
@@ -335,8 +345,9 @@
 						<Field.Error>{iconError}</Field.Error>
 					{:else}
 						<Field.Description>
-							A square PNG, ideally {ICON_RECOMMENDED_SIDE} by {ICON_RECOMMENDED_SIDE} pixels. Another
-							shape can be cropped here. It is saved with the rest of the form.
+							A square PNG, ideally {ICON_RECOMMENDED_SIDE} by {ICON_RECOMMENDED_SIDE} pixels and at
+							least {ICON_MIN_SIDE}. Another shape can be cropped here. It is saved with the rest of
+							the form.
 						</Field.Description>
 					{/if}
 				</Field.Field>

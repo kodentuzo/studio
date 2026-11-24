@@ -5,7 +5,13 @@ import { projects } from '#lib/server/db/schema.js';
 import { isFileUsed } from '#lib/server/file-uses.js';
 import { fileInfo, removeFile, saveUpload } from '#lib/server/files.js';
 import { cropToSquare, imageSize } from '#lib/server/images.js';
-import { checkIconSize, isHttpsUrl, isProjectLinkKey, PROJECT_LINKS } from '#lib/project.js';
+import {
+	checkIconSize,
+	checkIconSource,
+	isHttpsUrl,
+	isProjectLinkKey,
+	PROJECT_LINKS
+} from '#lib/project.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -41,6 +47,12 @@ export const actions: Actions = {
 		if (!Number.isFinite(offset) || offset < 0 || offset > 1) {
 			return refuse('That crop position is not valid.');
 		}
+
+		// Too small to give a big enough square, or too large to open: say so before cutting.
+		const size = await imageSize(path);
+		if (!size) return refuse('The image could not be read.');
+		const problem = checkIconSource(size.width, size.height);
+		if (problem) return refuse(problem);
 
 		const bytes = await cropToSquare(path, offset);
 		if (!bytes) return refuse('The image could not be read.');

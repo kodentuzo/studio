@@ -47,8 +47,28 @@ export const ICON_MIN_SIDE = 512;
 export const ICON_MAX_SIDE = 4096;
 export const ICON_RECOMMENDED_SIDE = 1024;
 
-/** What is wrong with an icon of this size, or null if it is fine. */
+/**
+ * Whether an image of this size can become an icon, as it is or after cropping to a square.
+ * Returns what is wrong, or null. The square cut from an image is as large as its short side,
+ * so that is the side that has to be big enough.
+ */
+export function checkIconSource(width: number, height: number): string | null {
+	const is = `This image is ${width} by ${height} pixels.`;
+
+	if (Math.max(width, height) > ICON_MAX_SIDE) {
+		return `The icon can be at most ${ICON_MAX_SIDE} pixels on each side. ${is}`;
+	}
+	if (Math.min(width, height) < ICON_MIN_SIDE) {
+		return `The icon has to be at least ${ICON_MIN_SIDE} pixels on each side. ${is}`;
+	}
+	return null;
+}
+
+/** What is wrong with an icon of this size, or null if it is fine as it is. */
 export function checkIconSize(width: number, height: number): string | null {
+	const problem = checkIconSource(width, height);
+	if (problem) return problem;
+
 	if (width !== height) {
 		return `The icon has to be square. This image is ${width} by ${height} pixels.`;
 	}
