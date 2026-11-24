@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CassetteTapeIcon from "@lucide/svelte/icons/cassette-tape";
-	import ForgotPasswordForm from "#lib/components/forgot-password-form.svelte";
+	import * as Card from "#lib/components/ui/card/index.js";
+	import { Button } from "#lib/components/ui/button/index.js";
 </script>
 
 <div class="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
@@ -13,6 +14,14 @@
 			</div>
 			Studio
 		</a>
-		<ForgotPasswordForm />
+		<Card.Root>
+			<Card.Header class="text-center">
+				<Card.Title class="text-xl">Forgot your password?</Card.Title>
+				<Card.Description>Ask your admin to reset it.</Card.Description>
+			</Card.Header>
+			<Card.Content>
+				<Button href="/auth/sign-in" class="w-full">Back to sign in</Button>
+			</Card.Content>
+		</Card.Root>
 	</div>
 </div>
