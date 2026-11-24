@@ -3,10 +3,16 @@ import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getMigrations } from 'better-auth/db/migration';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { auth } from '#lib/server/auth.js';
+import { db } from '#lib/server/db/index.js';
 
-// Runs once when the server starts: creates or updates the sign-in tables.
+// Runs once when the server starts: creates or updates the tables.
 export const init: ServerInit = async () => {
+	// Studio's own tables, from the migration files in ./drizzle.
+	await migrate(db, { migrationsFolder: 'drizzle' });
+
+	// The sign-in tables, which Better Auth looks after itself.
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
 };
