@@ -17,5 +17,14 @@ export const variables = defineEnvVars({
 	},
 	BETTER_AUTH_URL: {
 		description: 'The address Studio is reached at, such as http://localhost:5173.'
+	},
+	AI_URL: {
+		description:
+			'Optional. An OpenAI-compatible model server, such as Ollama at http://localhost:11434. When unset, Studio has no AI features.',
+		schema: (value) => value || undefined
+	},
+	AI_MODEL: {
+		description: 'The model to ask at AI_URL.',
+		schema: (value) => value || 'granite3.3:2b'
 	}
 });

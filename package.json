@@ -9,7 +9,8 @@
 	},
 	"scripts": {
 		"dev": "docker compose up --detach --wait && vite dev",
-		"dev:down": "docker compose down",
+		"dev:down": "docker compose --profile ai down",
+		"ai:up": "docker compose --profile ai up --detach --wait ollama && docker compose --profile ai exec ollama ollama pull granite3.3:2b",
 		"db:generate": "drizzle-kit generate",
 		"build": "vite build",
 		"preview": "vite preview",
@@ -42,6 +43,7 @@
 	"dependencies": {
 		"better-auth": "^1.7.27",
 		"drizzle-orm": "^0.45.4",
-		"pg": "^8.23.1"
+		"pg": "^8.23.1",
+		"unpdf": "^2.2.2"
 	}
 }

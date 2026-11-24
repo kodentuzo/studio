@@ -28,6 +28,11 @@
 	let counterparty = $state("");
 	let note = $state("");
 
+	// Reading a PDF invoice into the add form.
+	let reading = $state(false);
+	let readError = $state("");
+	let readNote = $state("");
+
 	// The id of the row being edited, or null when adding a new one.
 	let editingId = $state<string | null>(null);
 
@@ -42,6 +47,8 @@
 		counterparty = "";
 		note = "";
 		status = "paid";
+		readError = "";
+		readNote = "";
 		open = true;
 	}
 
@@ -97,6 +104,63 @@
 			<Dialog.Title>{editingId ? "Edit transaction" : "Add a transaction"}</Dialog.Title>
 			<Dialog.Description>Money going out or coming in.</Dialog.Description>
 		</Dialog.Header>
+		{#if data.canReadInvoices && !editingId}
+			<form
+				method="POST"
+				action="?/readInvoice"
+				enctype="multipart/form-data"
+				use:enhance={() => {
+					reading = true;
+					readError = "";
+					readNote = "";
+					// Not calling update(): nothing was saved, so the page has nothing to reload.
+					return async ({ result }) => {
+						reading = false;
+						if (result.type === "success" && result.data?.invoice) {
+							const invoice = result.data.invoice as {
+								date: string;
+								amount: string;
+								currency: string;
+								counterparty: string;
+							};
+							kind = "expense";
+							date = invoice.date;
+							amount = invoice.amount;
+							counterparty = invoice.counterparty;
+							readNote =
+								invoice.currency === "EUR"
+									? "Filled in from the invoice. Check the values before saving."
+									: `Filled in from the invoice, which is in ${invoice.currency}. Studio records euros, so change the amount.`;
+						} else if (result.type === "failure") {
+							readError = String(result.data?.error ?? "The invoice could not be read.");
+						} else {
+							readError = "The invoice could not be read.";
+						}
+					};
+				}}
+			>
+				<Field.Field>
+					<Field.Label for="invoice">Fill in from a PDF invoice</Field.Label>
+					<Input
+						id="invoice"
+						name="invoice"
+						type="file"
+						accept="application/pdf"
+						disabled={reading}
+						onchange={(event) => event.currentTarget.form?.requestSubmit()}
+					/>
+					{#if reading}
+						<Field.Description>Reading the invoice…</Field.Description>
+					{:else if readError}
+						<Field.Error>{readError}</Field.Error>
+					{:else if readNote}
+						<Field.Description>{readNote}</Field.Description>
+					{:else}
+						<Field.Description>Optional. It fills in the fields below for you to check.</Field.Description>
+					{/if}
+				</Field.Field>
+			</form>
+		{/if}
 		<form
 			method="POST"
 			action={editingId ? "?/edit" : "?/add"}

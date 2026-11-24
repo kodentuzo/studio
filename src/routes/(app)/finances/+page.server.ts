@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
+import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async () => {
 
 	const opening = rows.find((row) => row.source === 'opening') ?? null;
 
-	return { transactions: rows, totals, opening };
+	return { transactions: rows, totals, opening, canReadInvoices: invoiceReadingEnabled };
 };
 
 /** Checks the fields of the add and edit forms. Returns the row to save, or what is wrong. */
@@ -97,6 +98,24 @@ export const actions: Actions = {
 			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')));
 
 		return { edited: true };
+	},
+
+	// Reads a PDF invoice and returns its fields. Saves nothing: the page fills in the add form
+	// with them, and the person checks and saves.
+	readInvoice: async ({ request }) => {
+		const form = await request.formData();
+		const file = form.get('invoice');
+
+		if (!(file instanceof File)) {
+			return fail(400, { action: 'readInvoice', error: 'Choose a PDF file.' });
+		}
+
+		const result = await readInvoice(file);
+		if ('error' in result) {
+			return fail(422, { action: 'readInvoice', error: result.error });
+		}
+
+		return { invoice: result.fields };
 	},
 
 	remove: async ({ request }) => {

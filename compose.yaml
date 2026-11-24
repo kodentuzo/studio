@@ -30,6 +30,22 @@ services:
       timeout: 2s
       retries: 15
 
+  # Optional: a small local model for reading invoices. Not started by `pnpm dev`.
+  # Start it with: docker compose --profile ai up --detach --wait
+  ollama:
+    image: ollama/ollama:0.40.17
+    profiles: [ai]
+    ports:
+      - 127.0.0.1:11434:11434
+    volumes:
+      - ollama:/root/.ollama # the downloaded models, a few gigabytes
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
 volumes:
   postgres:
   registry:
+  ollama:
