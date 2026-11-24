@@ -3,6 +3,7 @@
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import LibraryIcon from "@lucide/svelte/icons/library";
+	import ReceiptIcon from "@lucide/svelte/icons/receipt";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
 
 	// This is sample data.
@@ -22,6 +23,11 @@
 				title: "Registry",
 				url: "/registry",
 				icon: LibraryIcon,
+			},
+			{
+				title: "Transactions",
+				url: "/transactions",
+				icon: ReceiptIcon,
 			},
 		],
 		projects: [
