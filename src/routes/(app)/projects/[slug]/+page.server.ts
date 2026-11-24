@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
 import { fileInfo } from '#lib/server/files.js';
+import { isHttpsUrl, isProjectLinkKey, PROJECT_LINKS } from '#lib/project.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -66,5 +67,39 @@ export const actions: Actions = {
 		if (!saved) error(404, 'That project does not exist.');
 
 		return { saved: true };
+	},
+
+	// Saves the named links. A link left empty is dropped, so `urls` only holds what is set.
+	saveLinks: async ({ request, params }) => {
+		const form = await request.formData();
+		const refuse = (message: string) => fail(400, { action: 'saveLinks', error: message });
+
+		const urls: Record<string, string> = {};
+
+		for (const [field, raw] of form.entries()) {
+			if (!field.startsWith('url.')) continue;
+
+			const key = field.slice('url.'.length);
+			if (!isProjectLinkKey(key)) return refuse(`"${key}" is not a kind of link Studio knows.`);
+
+			const value = String(raw).trim();
+			if (!value) continue;
+
+			if (!isHttpsUrl(value)) {
+				const label = PROJECT_LINKS.find((link) => link.key === key)?.label ?? key;
+				return refuse(`${label} has to be a full address starting with https://.`);
+			}
+			urls[key] = value;
+		}
+
+		const [saved] = await db
+			.update(projects)
+			.set({ urls, updatedAt: new Date() })
+			.where(eq(projects.slug, params.slug))
+			.returning({ id: projects.id });
+
+		if (!saved) error(404, 'That project does not exist.');
+
+		return { savedLinks: true };
 	}
 };

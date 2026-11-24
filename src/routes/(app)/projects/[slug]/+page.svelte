@@ -2,6 +2,8 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
 	import { fileName, fileUrl, uploadFile } from "#lib/files.js";
+	import { PROJECT_LINKS, REQUIRED_PROJECT_LINKS } from "#lib/project.js";
+	import * as Alert from "#lib/components/ui/alert/index.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
@@ -41,6 +43,18 @@
 	let saving = $state(false);
 	let saved = $state(false);
 
+	// One text box per kind of link, keyed like the project's `urls`.
+	let links = $state<Record<string, string>>({});
+	let savingLinks = $state(false);
+	let savedLinks = $state(false);
+
+	// The links a project should have, that the saved project does not.
+	const missingLinks = $derived(
+		PROJECT_LINKS.filter(
+			(link) => REQUIRED_PROJECT_LINKS.includes(link.key) && !data.project.urls[link.key]
+		)
+	);
+
 	// The form starts from what is saved, and starts over when another project is opened. Saving
 	// the same project does not reset it while you type.
 	let shownId = "";
@@ -56,6 +70,8 @@
 		iconPath = project.iconPath ?? "";
 		iconError = "";
 		saved = false;
+		links = Object.fromEntries(PROJECT_LINKS.map((link) => [link.key, project.urls[link.key] ?? ""]));
+		savedLinks = false;
 	});
 
 	const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -228,6 +244,68 @@
 			<div class="flex items-center gap-3">
 				<Button type="submit" disabled={saving}>Save</Button>
 				{#if saved}
+					<span class="text-sm text-muted-foreground" role="status">Saved.</span>
+				{/if}
+			</div>
+		</form>
+	</Card.Content>
+</Card.Root>
+
+<Card.Root class="max-w-2xl">
+	<Card.Header>
+		<Card.Title>Links</Card.Title>
+		<Card.Description>Where the app and its legal pages are.</Card.Description>
+	</Card.Header>
+	<Card.Content class="gap-6">
+		{#if missingLinks.length > 0}
+			<Alert.Root>
+				<Alert.Title>
+					Missing: {missingLinks.map((link) => link.label.toLowerCase()).join(" and ")}
+				</Alert.Title>
+				<Alert.Description>
+					An app that handles personal data needs both before it goes in front of people.
+				</Alert.Description>
+			</Alert.Root>
+		{/if}
+		<form
+			method="POST"
+			action="?/saveLinks"
+			class="flex flex-col gap-6"
+			use:enhance={() => {
+				savingLinks = true;
+				savedLinks = false;
+				return async ({ result, update }) => {
+					await update({ reset: false });
+					savingLinks = false;
+					savedLinks = result.type === "success";
+				};
+			}}
+		>
+			<Field.Group>
+				{#each PROJECT_LINKS as link (link.key)}
+					<Field.Field>
+						<Field.Label for="url-{link.key}">{link.label}</Field.Label>
+						<Input
+							id="url-{link.key}"
+							name="url.{link.key}"
+							type="url"
+							inputmode="url"
+							maxlength={500}
+							placeholder={link.placeholder}
+							autocomplete="off"
+							spellcheck={false}
+							bind:value={links[link.key]}
+						/>
+						<Field.Description>{link.hint}</Field.Description>
+					</Field.Field>
+				{/each}
+				{#if form?.action === "saveLinks" && form.error}
+					<Field.Error>{form.error}</Field.Error>
+				{/if}
+			</Field.Group>
+			<div class="flex items-center gap-3">
+				<Button type="submit" disabled={savingLinks}>Save links</Button>
+				{#if savedLinks}
 					<span class="text-sm text-muted-foreground" role="status">Saved.</span>
 				{/if}
 			</div>
