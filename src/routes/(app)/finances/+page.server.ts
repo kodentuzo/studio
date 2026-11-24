@@ -99,6 +99,22 @@ export const actions: Actions = {
 		return { edited: true };
 	},
 
+	remove: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+
+		if (!/^[0-9a-f-]{36}$/i.test(id)) {
+			return fail(400, { action: 'remove', error: 'That transaction does not exist.' });
+		}
+
+		// The opening balance is removed by setting it to 0 in its own form.
+		await db
+			.delete(transactions)
+			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')));
+
+		return { removed: true };
+	},
+
 	// Turns a planned row into a paid one, once the money has moved.
 	markPaid: async ({ request }) => {
 		const form = await request.formData();

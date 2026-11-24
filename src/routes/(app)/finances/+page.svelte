@@ -2,7 +2,9 @@
 	import PencilIcon from "@lucide/svelte/icons/pencil";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import ReceiptIcon from "@lucide/svelte/icons/receipt";
+	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import { enhance } from "$app/forms";
+	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
@@ -54,6 +56,9 @@
 		status = transaction.status;
 		open = true;
 	}
+
+	// The row waiting for a yes or no on deleting it.
+	let deleting = $state<(typeof data.transactions)[number] | null>(null);
 
 	let openingOpen = $state(false);
 	let openingAmount = $state("");
@@ -268,6 +273,40 @@
 	</Dialog.Content>
 </Dialog.Root>
 
+<AlertDialog.Root
+	open={deleting !== null}
+	onOpenChange={(isOpen) => {
+		if (!isOpen) deleting = null;
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete this transaction?</AlertDialog.Title>
+			<AlertDialog.Description>
+				{#if deleting}
+					{deleting.counterparty}, {money(deleting.amount, deleting.currency)}, on
+					{dateFormat.format(new Date(deleting.date))}. This cannot be undone.
+				{/if}
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<form
+			method="POST"
+			action="?/remove"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update();
+					deleting = null;
+				}}
+		>
+			<input type="hidden" name="id" value={deleting?.id ?? ""} />
+			<AlertDialog.Footer>
+				<AlertDialog.Cancel type="button">Cancel</AlertDialog.Cancel>
+				<AlertDialog.Action type="submit" variant="destructive">Delete</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</form>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
 <h2 class="text-lg font-semibold">Transactions</h2>
 
 {#if data.transactions.length === 0}
@@ -334,6 +373,12 @@
 							<PencilIcon />
 							<span class="sr-only">Edit</span>
 						</Button>
+						{#if transaction.source !== "opening"}
+							<Button variant="ghost" size="icon" onclick={() => (deleting = transaction)}>
+								<TrashIcon />
+								<span class="sr-only">Delete</span>
+							</Button>
+						{/if}
 					</Table.Cell>
 				</Table.Row>
 			{/each}
