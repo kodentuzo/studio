@@ -14,8 +14,8 @@
 				icon: LayoutDashboardIcon,
 			},
 			{
-				title: "Apps",
-				url: "/apps",
+				title: "Projects",
+				url: "/projects",
 				icon: AppWindowIcon,
 			},
 			{
