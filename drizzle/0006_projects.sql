@@ -1,0 +1,21 @@
+CREATE TABLE "projects" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slug" text NOT NULL,
+	"name" text NOT NULL,
+	"short_name" text,
+	"description" text,
+	"theme_color" text,
+	"background_color" text,
+	"icon_path" text,
+	"urls" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "projects_slug_unique" UNIQUE("slug"),
+	CONSTRAINT "projects_slug_shape" CHECK ("projects"."slug" ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length("projects"."slug") <= 40),
+	CONSTRAINT "projects_name_length" CHECK (char_length("projects"."name") between 1 and 45),
+	CONSTRAINT "projects_short_name_length" CHECK (char_length("projects"."short_name") <= 12),
+	CONSTRAINT "projects_description_length" CHECK (char_length("projects"."description") <= 300),
+	CONSTRAINT "projects_theme_color_shape" CHECK ("projects"."theme_color" ~ '^#[0-9a-fA-F]{6}$'),
+	CONSTRAINT "projects_background_color_shape" CHECK ("projects"."background_color" ~ '^#[0-9a-fA-F]{6}$'),
+	CONSTRAINT "projects_urls_is_object" CHECK (jsonb_typeof("projects"."urls") = 'object')
+);
