@@ -29,6 +29,7 @@
 		"bits-ui": "^2.22.0",
 		"cn": "^0.5.2",
 		"drizzle-kit": "^0.31.11",
+		"layerchart": "^2.11.0",
 		"shadcn-svelte": "^1.8.1",
 		"svelte": "^5.57.3",
 		"svelte-check": "^4.7.8",
