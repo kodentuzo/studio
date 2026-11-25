@@ -1,9 +1,8 @@
 # Kodentuzo Studio
 
-> Self-hosted app for running a small team: projects, files, finances and deploys.
+> Self-hosted app for a small team's projects, files and finances.
 
-Self-hosted app for a small team: projects, files and finances today. Deploying your own web
-apps from it is planned.
+Deploying your own web apps from it is planned, not built yet.
 
 The words Studio uses, such as source, take, cassette, rack and deck, are explained in the
 [vocabulary](https://github.com/kodentuzo/manual/blob/main/src/content/docs/vocabulary.md).
