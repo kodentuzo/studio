@@ -1,4 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
+import { eq, inArray } from 'drizzle-orm';
+import { db } from '#lib/server/db/index.js';
+import { transactions } from '#lib/server/db/schema.js';
 import { listVault, removeFromVault, saveToVault } from '#lib/server/vault.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -6,11 +9,35 @@ export const load: PageServerLoad = async ({ url }) => {
 	const listing = await listVault(url.searchParams.get('dir') ?? '');
 	if (!listing) error(404, 'That folder does not exist.');
 
-	return listing;
+	// Which of these files a transaction points at.
+	const paths = listing.files.map((file) => file.path);
+	const uses = paths.length
+		? await db
+				.select({
+					id: transactions.id,
+					date: transactions.date,
+					counterparty: transactions.counterparty,
+					filePath: transactions.filePath
+				})
+				.from(transactions)
+				.where(inArray(transactions.filePath, paths))
+		: [];
+
+	return {
+		dir: listing.dir,
+		folders: listing.folders,
+		files: listing.files.map((file) => ({
+			...file,
+			uses: uses
+				.filter((use) => use.filePath === file.path)
+				.map(({ id, date, counterparty }) => ({ id, date, counterparty }))
+		}))
+	};
 };
 
 export const actions: Actions = {
-	// Stores one file. With `dir` it goes into that folder; without, into this month's.
+	// Stores one file. With `dir` it goes into that folder; the transaction sheet sends none,
+	// and the file goes into this month's folder.
 	upload: async ({ request }) => {
 		const form = await request.formData();
 		const file = form.get('file');
@@ -29,6 +56,18 @@ export const actions: Actions = {
 	remove: async ({ request }) => {
 		const form = await request.formData();
 		const path = String(form.get('path') ?? '');
+
+		const [use] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(eq(transactions.filePath, path))
+			.limit(1);
+		if (use) {
+			return fail(409, {
+				action: 'remove',
+				error: 'That file is attached to a transaction. Detach it first.'
+			});
+		}
 
 		if (!(await removeFromVault(path))) {
 			return fail(404, { action: 'remove', error: 'That file does not exist.' });

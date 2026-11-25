@@ -2,8 +2,8 @@ import { fail } from '@sveltejs/kit';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
-import { fileInfo, readFileBytes } from '#lib/server/media.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
+import { readVaultBytes, vaultFileInfo } from '#lib/server/vault.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -61,8 +61,8 @@ async function readTransaction(form: FormData) {
 		return { error: 'Choose paid or planned.' };
 	}
 
-	// An attachment is optional. If one is named, it has to be a file in the media folder.
-	if (filePath && !(await fileInfo(filePath))) {
+	// An attachment is optional. If one is named, it has to be a file in the vault.
+	if (filePath && !(await vaultFileInfo(filePath))) {
 		return { error: 'The attached file does not exist any more. Attach it again.' };
 	}
 
@@ -114,7 +114,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const path = String(form.get('filePath') ?? '');
 
-		const info = await fileInfo(path);
+		const info = await vaultFileInfo(path);
 		if (!info) {
 			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -125,7 +125,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const bytes = await readFileBytes(path);
+		const bytes = await readVaultBytes(path);
 		if (!bytes) {
 			return fail(404, { action: 'readInvoice', error: 'That file does not exist.' });
 		}

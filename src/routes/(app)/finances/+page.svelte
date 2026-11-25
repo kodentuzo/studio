@@ -6,7 +6,8 @@
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
-	import { callAction, fileName, mediaUrl, uploadMedia } from "#lib/media.js";
+	import { callAction, fileName } from "#lib/media.js";
+	import { uploadToVault, vaultUrl } from "#lib/vault.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
@@ -52,7 +53,7 @@
 		readError = "";
 		readNote = "";
 
-		const stored = await uploadMedia(file);
+		const stored = await uploadToVault(file);
 		if ("error" in stored) {
 			readError = stored.error;
 			reading = false;
@@ -99,7 +100,7 @@
 		attaching = true;
 		attachError = "";
 
-		const stored = await uploadMedia(file);
+		const stored = await uploadToVault(file);
 		if ("error" in stored) {
 			attachError = stored.error;
 		} else {
@@ -297,7 +298,7 @@
 					<div class="flex items-center gap-2">
 						<PaperclipIcon class="size-4 shrink-0 text-muted-foreground" />
 						<a
-							href={mediaUrl(attachment.path)}
+							href={vaultUrl(attachment.path)}
 							target="_blank"
 							rel="noopener"
 							class="truncate text-sm hover:underline"
@@ -536,7 +537,7 @@
 							{transaction.counterparty}
 							{#if transaction.filePath}
 								<a
-									href={mediaUrl(transaction.filePath)}
+									href={vaultUrl(transaction.filePath)}
 									target="_blank"
 									rel="noopener"
 									class="text-muted-foreground hover:text-foreground"

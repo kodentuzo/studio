@@ -22,18 +22,16 @@ export async function callAction(url: string, body: FormData) {
 
 export type UploadedFile = { path: string; name: string; contentType: string };
 
-/**
- * Stores a file through the Media page's upload action. With `dir` it goes into that folder;
- * without, into this month's.
- */
-export async function uploadMedia(
+/** Stores a file through an upload action, such as "/media?/upload". */
+export async function uploadThrough(
+	action: string,
 	file: File,
 	dir?: string
 ): Promise<{ file: UploadedFile } | { error: string }> {
 	const body = new FormData();
 	body.set('file', file);
 	if (dir !== undefined) body.set('dir', dir);
-	const result = await callAction('/media?/upload', body);
+	const result = await callAction(action, body);
 
 	if (result.type === 'success' && result.data?.file) {
 		return { file: result.data.file as UploadedFile };
@@ -44,4 +42,12 @@ export async function uploadMedia(
 				? String(result.data?.error ?? 'The file could not be stored.')
 				: 'The file could not be stored.'
 	};
+}
+
+/**
+ * Stores a file in the media folder. With `dir` it goes into that folder; without, into this
+ * month's.
+ */
+export function uploadMedia(file: File, dir?: string) {
+	return uploadThrough('/media?/upload', file, dir);
 }

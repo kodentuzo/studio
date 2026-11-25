@@ -30,7 +30,6 @@
 	);
 
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-	const useDateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
 
 	function size(bytes: number) {
 		if (bytes < 1024) return `${bytes} B`;
@@ -141,7 +140,7 @@
 			</Empty.Media>
 			<Empty.Title>{data.dir ? "This folder is empty" : "No files yet"}</Empty.Title>
 			<Empty.Description>
-				Invoices and receipts attached to transactions are kept here, by month.
+				Images and other files Studio serves, such as project icons, are kept here.
 			</Empty.Description>
 		</Empty.Header>
 	</Empty.Root>
@@ -181,15 +180,10 @@
 						</a>
 					</Table.Cell>
 					<Table.Cell>
-						{#if file.uses.length === 0 && file.iconOf.length === 0}
+						{#if file.iconOf.length === 0}
 							<Badge variant="outline">Unused</Badge>
 						{:else}
 							<div class="flex flex-col gap-1">
-								{#each file.uses as use (use.id)}
-									<a href="/finances" class="hover:underline">
-										{use.counterparty}, {useDateFormat.format(new Date(use.date))}
-									</a>
-								{/each}
 								{#each file.iconOf as project (project.slug)}
 									<a href="/projects/{project.slug}" class="hover:underline">
 										Icon of {project.name}
@@ -201,7 +195,7 @@
 					<Table.Cell>{dateFormat.format(file.modified)}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">{size(file.size)}</Table.Cell>
 					<Table.Cell class="text-end">
-						{#if file.uses.length === 0 && file.iconOf.length === 0}
+						{#if file.iconOf.length === 0}
 							<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
 								<TrashIcon />
 								<span class="sr-only">Delete</span>

@@ -9,6 +9,7 @@
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
+	import { Badge } from "#lib/components/ui/badge/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import type { PageProps } from "./$types";
 
@@ -17,7 +18,7 @@
 	let picker = $state<HTMLInputElement | null>(null);
 	let uploading = $state(false);
 
-	// The file waiting for a yes or no on deleting it.
+	// The unused file waiting for a yes or no on deleting it.
 	let deleting = $state<(typeof data.files)[number] | null>(null);
 
 	// The folders leading to this one, for the trail at the top: 2026, then 2026/11.
@@ -29,6 +30,7 @@
 	);
 
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+	const useDateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
 
 	function size(bytes: number) {
 		if (bytes < 1024) return `${bytes} B`;
@@ -139,7 +141,7 @@
 			</Empty.Media>
 			<Empty.Title>{data.dir ? "This folder is empty" : "No files yet"}</Empty.Title>
 			<Empty.Description>
-				Files that must not be lost, such as invoices and receipts, are kept here.
+				Invoices and receipts attached to transactions are kept here, by month.
 			</Empty.Description>
 		</Empty.Header>
 	</Empty.Root>
@@ -148,6 +150,7 @@
 		<Table.Header>
 			<Table.Row>
 				<Table.Head>Name</Table.Head>
+				<Table.Head>Used by</Table.Head>
 				<Table.Head>Changed</Table.Head>
 				<Table.Head class="text-end">Size</Table.Head>
 				<Table.Head><span class="sr-only">Actions</span></Table.Head>
@@ -156,7 +159,7 @@
 		<Table.Body>
 			{#each data.folders as folder (folder.path)}
 				<Table.Row>
-					<Table.Cell class="font-medium" colspan={4}>
+					<Table.Cell class="font-medium" colspan={5}>
 						<a href={folderUrl(folder.path)} class="flex items-center gap-2 hover:underline">
 							<FolderIcon class="size-4 text-muted-foreground" />
 							{folder.name}
@@ -177,13 +180,28 @@
 							{file.name}
 						</a>
 					</Table.Cell>
+					<Table.Cell>
+						{#if file.uses.length === 0}
+							<Badge variant="outline">Unused</Badge>
+						{:else}
+							<div class="flex flex-col gap-1">
+								{#each file.uses as use (use.id)}
+									<a href="/finances" class="hover:underline">
+										{use.counterparty}, {useDateFormat.format(new Date(use.date))}
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</Table.Cell>
 					<Table.Cell>{dateFormat.format(file.modified)}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">{size(file.size)}</Table.Cell>
 					<Table.Cell class="text-end">
-						<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
-							<TrashIcon />
-							<span class="sr-only">Delete</span>
-						</Button>
+						{#if file.uses.length === 0}
+							<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
+								<TrashIcon />
+								<span class="sr-only">Delete</span>
+							</Button>
+						{/if}
 					</Table.Cell>
 				</Table.Row>
 			{/each}

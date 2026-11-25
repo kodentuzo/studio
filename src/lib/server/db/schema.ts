@@ -26,7 +26,7 @@ export const transactions = pgTable(
 		source: text('source').notNull().default('manual'),
 		// 'paid' means the money has moved. 'planned' is expected and not counted yet.
 		status: text('status').notNull().default('paid'),
-		// The attached invoice or receipt, if any: its path inside the media folder.
+		// The attached invoice or receipt, if any: its path inside the vault.
 		filePath: text('file_path'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
