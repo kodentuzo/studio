@@ -7,6 +7,7 @@ import {
 	VAULT_S3_REGION,
 	VAULT_S3_SECRET_ACCESS_KEY
 } from '$app/env/private';
+import { checkUpload, cleanName } from './uploads.js';
 
 // The vault is one bucket on an S3-style server, and that bucket is the list: whatever is in it
 // is what Studio shows. A file is known by its key, such as "2026/11/invoice-3f9a2c1b.pdf".
@@ -175,4 +176,127 @@ function unescapeXml(value: string) {
 		.replace(/&quot;/g, '"')
 		.replace(/&apos;/g, "'")
 		.replace(/&amp;/g, '&');
+}
+
+// What follows is the vault as the rest of Studio sees it: folders and files, known by path.
+
+/** The kinds the vault shows in the browser. Anything else it only hands over as a download. */
+const SHOWN_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
+
+/**
+ * A path as the vault allows it, with stray slashes dropped, or null: a part that is hidden
+ * (starts with a dot) or holds a backslash or a control character is refused.
+ */
+function cleanPath(path: string): string | null {
+	const parts = path.split('/').filter(Boolean);
+	if (parts.some((part) => part.startsWith('.') || /[\\\u0000-\u001f\u007f]/.test(part))) {
+		return null;
+	}
+	return parts.join('/');
+}
+
+export type VaultListing = {
+	/** The folder being listed, "" for the top. */
+	dir: string;
+	folders: { name: string; path: string }[];
+	files: { name: string; path: string; size: number; modified: Date }[];
+};
+
+/** What is in a folder. A folder exists only while it holds something, so none is ever missing. */
+export async function listVault(dir: string): Promise<VaultListing | null> {
+	const clean = cleanPath(dir);
+	if (clean === null) return null;
+
+	const prefix = clean ? `${clean}/` : '';
+	const { folders, files } = await listObjects(prefix);
+
+	return {
+		dir: clean,
+		folders: folders
+			.map((folder) => ({
+				name: folder.slice(prefix.length, -1),
+				path: folder.slice(0, -1)
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name)),
+		files: files
+			.map((file) => ({
+				name: file.key.slice(prefix.length),
+				path: file.key,
+				size: file.size,
+				modified: file.modified
+			}))
+			.sort((a, b) => b.modified.getTime() - a.modified.getTime())
+	};
+}
+
+/** Size and type of one file, or null if it is not there. */
+export async function vaultFileInfo(path: string) {
+	const clean = cleanPath(path);
+	if (!clean) return null;
+	return headObject(clean);
+}
+
+/**
+ * The file as a response to stream on, or null. `shown` says whether it is a kind the browser
+ * may display; the bucket can hold files that did not come through Studio.
+ */
+export async function openVaultFile(path: string) {
+	const clean = cleanPath(path);
+	if (!clean) return null;
+
+	const response = await getObject(clean);
+	if (!response?.body) return null;
+
+	const contentType = response.headers.get('content-type') ?? '';
+	const shown = SHOWN_TYPES.has(contentType);
+	return {
+		body: response.body,
+		size: response.headers.get('content-length'),
+		contentType: shown ? contentType : 'application/octet-stream',
+		shown
+	};
+}
+
+export async function readVaultBytes(path: string): Promise<Uint8Array | null> {
+	const clean = cleanPath(path);
+	if (!clean) return null;
+	const response = await getObject(clean);
+	return response ? new Uint8Array(await response.arrayBuffer()) : null;
+}
+
+/**
+ * Checks an upload and stores it. Into `dir` when one is given; otherwise into this month's
+ * folder, such as 2026/11. The name gets a random ending, as in invoice-3f9a2c1b.pdf, so two
+ * uploads never share a path and nothing is ever overwritten.
+ */
+export async function saveToVault(
+	file: File,
+	dir?: string
+): Promise<{ path: string; name: string; contentType: string; size: number } | { error: string }> {
+	const checked = await checkUpload(file);
+	if ('error' in checked) return checked;
+
+	const now = new Date();
+	const folder = cleanPath(
+		dir ?? `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+	);
+	if (folder === null) return { error: 'That folder is not allowed.' };
+
+	const wanted = cleanName(file.name || 'file');
+	const dot = wanted.lastIndexOf('.');
+	const stem = dot > 0 ? wanted.slice(0, dot) : wanted;
+	const extension = dot > 0 ? wanted.slice(dot) : '';
+	const name = `${stem}-${crypto.randomUUID().slice(0, 8)}${extension}`;
+	const path = folder ? `${folder}/${name}` : name;
+
+	await putObject(path, new Uint8Array(await file.arrayBuffer()), checked.contentType);
+	return { path, name, contentType: checked.contentType, size: file.size };
+}
+
+/** Deletes one file. Whether it is in use is the caller's check. */
+export async function removeFromVault(path: string): Promise<boolean> {
+	const clean = cleanPath(path);
+	if (!clean || !(await headObject(clean))) return false;
+	await deleteObject(clean);
+	return true;
 }

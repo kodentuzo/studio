@@ -14,11 +14,11 @@ import {
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { MEDIA_DIR } from '$app/env/private';
+import { checkUpload, cleanName, sniffType } from './uploads.js';
 
 // Media files live in one folder on disk, and that folder is the list: whatever is in it is what
 // Studio shows. A file is known by its path inside the folder, such as "2026/11/invoice.pdf".
 const root = resolve(MEDIA_DIR);
-const MAX_BYTES = 5 * 1024 * 1024;
 
 /** Makes sure the folder is there. Run once at start. */
 export async function ensureStorage() {
@@ -51,25 +51,6 @@ async function isInside(full: string) {
 	}
 }
 
-/** The kinds of file Studio stores and serves, told apart by their first bytes. */
-function sniffType(bytes: Uint8Array): string | null {
-	const starts = (...values: number[]) => values.every((value, index) => bytes[index] === value);
-
-	if (starts(0x25, 0x50, 0x44, 0x46, 0x2d)) return 'application/pdf'; // %PDF-
-	if (starts(0x89, 0x50, 0x4e, 0x47)) return 'image/png';
-	if (starts(0xff, 0xd8, 0xff)) return 'image/jpeg';
-	if (
-		starts(0x52, 0x49, 0x46, 0x46) && // RIFF
-		bytes[8] === 0x57 &&
-		bytes[9] === 0x45 &&
-		bytes[10] === 0x42 &&
-		bytes[11] === 0x50 // WEBP
-	) {
-		return 'image/webp';
-	}
-	return null;
-}
-
 async function sniffFile(full: string): Promise<string | null> {
 	const handle = await open(full, 'r');
 	try {
@@ -79,17 +60,6 @@ async function sniffFile(full: string): Promise<string | null> {
 	} finally {
 		await handle.close();
 	}
-}
-
-/** A name safe to use on disk: no slashes, no control characters, not hidden. */
-function cleanName(name: string) {
-	const cleaned = name
-		.normalize('NFC')
-		.replace(/[\\/\u0000-\u001f\u007f]/g, '_')
-		.replace(/^\.+/, '_')
-		.trim()
-		.slice(0, 150);
-	return cleaned || 'file';
 }
 
 export type Listing = {
@@ -170,11 +140,9 @@ export async function saveUpload(
 	file: File,
 	dir?: string
 ): Promise<{ path: string; name: string; contentType: string; size: number } | { error: string }> {
-	if (file.size === 0) return { error: 'Choose a file.' };
-	if (file.size > MAX_BYTES) return { error: 'That file is larger than 5 MB.' };
-
-	const contentType = sniffType(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
-	if (!contentType) return { error: 'Only PDF, PNG, JPEG and WebP files can be stored.' };
+	const checked = await checkUpload(file);
+	if ('error' in checked) return checked;
+	const { contentType } = checked;
 
 	const now = new Date();
 	const folder =
