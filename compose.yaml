@@ -30,6 +30,23 @@ services:
       timeout: 2s
       retries: 15
 
+  # The vault is an S3-style bucket. In development this is RustFS; anywhere else it is whatever
+  # bucket Studio is given.
+  vault:
+    image: rustfs/rustfs:1.0.6
+    environment:
+      RUSTFS_ACCESS_KEY: studio
+      RUSTFS_SECRET_KEY: studio-dev-secret
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      - vault:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
   # Optional: a small local model for reading invoices. Not started by `pnpm dev`.
   # Start it with: docker compose --profile ai up --detach --wait
   ollama:
@@ -48,4 +65,5 @@ services:
 volumes:
   postgres:
   registry:
+  vault:
   ollama:

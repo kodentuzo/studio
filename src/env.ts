@@ -23,6 +23,23 @@ export const variables = defineEnvVars({
 			'The folder media files are kept in. It must survive restarts, so in a container it has to be a volume.',
 		schema: (value) => value || 'data/media'
 	},
+	VAULT_S3_ENDPOINT: {
+		description:
+			'The S3-style storage server the vault is kept on, such as https://fsn1.your-objectstorage.com.'
+	},
+	VAULT_S3_BUCKET: {
+		description: 'The bucket for the vault. It has to exist already.'
+	},
+	VAULT_S3_ACCESS_KEY_ID: {
+		description: 'The access key for the vault bucket.'
+	},
+	VAULT_S3_SECRET_ACCESS_KEY: {
+		description: 'The secret key for the vault bucket.'
+	},
+	VAULT_S3_REGION: {
+		description: 'The region the storage server expects in signatures, such as fsn1.',
+		schema: (value) => value || 'us-east-1'
+	},
 	AI_URL: {
 		description:
 			'Optional. An OpenAI-compatible model server, such as Ollama at http://localhost:11434. When unset, Studio has no AI features.',
