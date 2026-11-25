@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects, transactions } from '#lib/server/db/schema.js';
-import { listFolder, removeFile, saveUpload } from '#lib/server/files.js';
+import { listFolder, removeFile, saveUpload } from '#lib/server/media.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url }) => {

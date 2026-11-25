@@ -26,7 +26,7 @@ export const transactions = pgTable(
 		source: text('source').notNull().default('manual'),
 		// 'paid' means the money has moved. 'planned' is expected and not counted yet.
 		status: text('status').notNull().default('paid'),
-		// The attached invoice or receipt, if any: its path inside the files folder.
+		// The attached invoice or receipt, if any: its path inside the media folder.
 		filePath: text('file_path'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
@@ -54,7 +54,7 @@ export const projects = pgTable(
 		description: text('description'),
 		themeColor: text('theme_color'),
 		backgroundColor: text('background_color'),
-		// The icon's path inside the files folder.
+		// The icon's path inside the media folder.
 		iconPath: text('icon_path'),
 		// Named links, read if present: app, privacy, terms. The allowed names and the shape of
 		// each link are checked in code; here only that it is an object.

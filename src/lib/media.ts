@@ -1,8 +1,8 @@
 import { deserialize } from '$app/forms';
 
 /** The address a stored file is opened at. Each part of the path is escaped on its own. */
-export function fileUrl(path: string) {
-	return `/files/raw/${path.split('/').map(encodeURIComponent).join('/')}`;
+export function mediaUrl(path: string) {
+	return `/media/raw/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 /** The last part of a path: "2026/11/invoice.pdf" gives "invoice.pdf". */
@@ -23,17 +23,17 @@ export async function callAction(url: string, body: FormData) {
 export type UploadedFile = { path: string; name: string; contentType: string };
 
 /**
- * Stores a file through the Files page's upload action. With `dir` it goes into that folder;
+ * Stores a file through the Media page's upload action. With `dir` it goes into that folder;
  * without, into this month's.
  */
-export async function uploadFile(
+export async function uploadMedia(
 	file: File,
 	dir?: string
 ): Promise<{ file: UploadedFile } | { error: string }> {
 	const body = new FormData();
 	body.set('file', file);
 	if (dir !== undefined) body.set('dir', dir);
-	const result = await callAction('/files?/upload', body);
+	const result = await callAction('/media?/upload', body);
 
 	if (result.type === 'success' && result.data?.file) {
 		return { file: result.data.file as UploadedFile };

@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { ICON_MAX_SIDE } from '#lib/project.js';
-import { fileInfo } from './files.js';
+import { fileInfo } from './media.js';
 
 // Refuse to unpack anything larger than the largest icon Studio accepts. An image is unpacked
 // at four bytes per pixel, and a small file can claim to be enormous. This guards every place

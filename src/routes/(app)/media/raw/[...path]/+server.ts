@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
-import { fileName } from '#lib/files.js';
-import { openFile } from '#lib/server/files.js';
+import { fileName } from '#lib/media.js';
+import { openFile } from '#lib/server/media.js';
 import type { RequestHandler } from './$types';
 
 // Serves one stored file. It sits behind the sign-in guard like every other page.

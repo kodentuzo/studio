@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
 import { isFileUsed } from '#lib/server/file-uses.js';
-import { fileInfo, removeFile, saveUpload } from '#lib/server/files.js';
+import { fileInfo, removeFile, saveUpload } from '#lib/server/media.js';
 import { cropToSquare, imageSize } from '#lib/server/images.js';
 import {
 	checkIconSize,
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	return { project };
 };
 
-/** The project's own folder in the files folder. Icon uploads live here. */
+/** The project's own folder in the media folder. Icon uploads live here. */
 function projectFolder(slug: string) {
 	return `projects/${slug}`;
 }
@@ -106,7 +106,7 @@ export const actions: Actions = {
 			return refuse('The background colour has to look like #ffffff.');
 		}
 
-		// The icon is optional. If one is named, it has to be an image in the files folder.
+		// The icon is optional. If one is named, it has to be an image in the media folder.
 		if (iconPath) {
 			const info = await fileInfo(iconPath);
 			if (!info) return refuse('The icon file does not exist any more. Upload it again.');

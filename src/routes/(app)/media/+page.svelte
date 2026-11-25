@@ -4,7 +4,7 @@
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import UploadIcon from "@lucide/svelte/icons/upload";
 	import { enhance } from "$app/forms";
-	import { fileUrl } from "#lib/files.js";
+	import { mediaUrl } from "#lib/media.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
@@ -39,12 +39,12 @@
 	}
 
 	function folderUrl(path: string) {
-		return path ? `/files?dir=${encodeURIComponent(path)}` : "/files";
+		return path ? `/media?dir=${encodeURIComponent(path)}` : "/media";
 	}
 </script>
 
 <div class="flex items-center justify-between gap-4">
-	<h1 class="text-2xl font-semibold">Files</h1>
+	<h1 class="text-2xl font-semibold">Media</h1>
 	<form
 		method="POST"
 		action="?/upload"
@@ -78,9 +78,9 @@
 	<Breadcrumb.List>
 		<Breadcrumb.Item>
 			{#if trail.length === 0}
-				<Breadcrumb.Page>Files</Breadcrumb.Page>
+				<Breadcrumb.Page>Media</Breadcrumb.Page>
 			{:else}
-				<Breadcrumb.Link href="/files">Files</Breadcrumb.Link>
+				<Breadcrumb.Link href="/media">Media</Breadcrumb.Link>
 			{/if}
 		</Breadcrumb.Item>
 		{#each trail as part, index (part.path)}
@@ -171,7 +171,7 @@
 				<Table.Row>
 					<Table.Cell class="font-medium">
 						<a
-							href={fileUrl(file.path)}
+							href={mediaUrl(file.path)}
 							target="_blank"
 							rel="noopener"
 							class="flex items-center gap-2 hover:underline"

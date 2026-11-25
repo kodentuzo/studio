@@ -1,7 +1,7 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
-	import { callAction, fileName, fileUrl, uploadFile } from "#lib/files.js";
+	import { callAction, fileName, mediaUrl, uploadMedia } from "#lib/media.js";
 	import { toWebManifest } from "#lib/manifest.js";
 	import {
 		checkIconSource,
@@ -145,7 +145,7 @@
 			if (problem) {
 				iconError = problem;
 			} else {
-				const stored = await uploadFile(file, `projects/${data.project.slug}`);
+				const stored = await uploadMedia(file, `projects/${data.project.slug}`);
 
 				if ("error" in stored) {
 					iconError = stored.error;
@@ -222,7 +222,7 @@
 					style="width: {cropView.width}px; height: {cropView.height}px;"
 				>
 					<img
-						src={fileUrl(cropping.path)}
+						src={mediaUrl(cropping.path)}
 						alt="Before cropping"
 						class="pointer-events-none size-full select-none"
 						draggable="false"
@@ -311,7 +311,7 @@
 					{#if iconPath}
 						<div class="flex items-center gap-3">
 							<img
-								src={fileUrl(iconPath)}
+								src={mediaUrl(iconPath)}
 								alt="The project's icon"
 								class="size-16 rounded-xl border object-cover"
 							/>

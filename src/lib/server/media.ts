@@ -13,11 +13,11 @@ import {
 } from 'node:fs/promises';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { FILES_DIR } from '$app/env/private';
+import { MEDIA_DIR } from '$app/env/private';
 
-// Files live in one folder on disk, and that folder is the list: whatever is in it is what
+// Media files live in one folder on disk, and that folder is the list: whatever is in it is what
 // Studio shows. A file is known by its path inside the folder, such as "2026/11/invoice.pdf".
-const root = resolve(FILES_DIR);
+const root = resolve(MEDIA_DIR);
 const MAX_BYTES = 5 * 1024 * 1024;
 
 /** Makes sure the folder is there. Run once at start. */

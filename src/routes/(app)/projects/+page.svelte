@@ -2,7 +2,7 @@
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import { enhance } from "$app/forms";
-	import { fileUrl } from "#lib/files.js";
+	import { mediaUrl } from "#lib/media.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Sheet from "#lib/components/ui/sheet/index.js";
@@ -140,7 +140,7 @@
 						<a href="/projects/{project.slug}" class="flex items-center gap-3 hover:underline">
 							{#if project.iconPath}
 								<img
-									src={fileUrl(project.iconPath)}
+									src={mediaUrl(project.iconPath)}
 									alt=""
 									class="size-8 rounded-lg border object-cover"
 								/>

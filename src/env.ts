@@ -18,10 +18,10 @@ export const variables = defineEnvVars({
 	BETTER_AUTH_URL: {
 		description: 'The address Studio is reached at, such as http://localhost:5173.'
 	},
-	FILES_DIR: {
+	MEDIA_DIR: {
 		description:
-			'The folder uploaded files are kept in. It must survive restarts, so in a container it has to be a volume.',
-		schema: (value) => value || 'data/files'
+			'The folder media files are kept in. It must survive restarts, so in a container it has to be a volume.',
+		schema: (value) => value || 'data/media'
 	},
 	AI_URL: {
 		description:

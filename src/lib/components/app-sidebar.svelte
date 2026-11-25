@@ -31,8 +31,8 @@
 				icon: WalletIcon,
 			},
 			{
-				title: "Files",
-				url: "/files",
+				title: "Media",
+				url: "/media",
 				icon: FolderIcon,
 			},
 		],

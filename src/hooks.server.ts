@@ -6,14 +6,14 @@ import { getMigrations } from 'better-auth/db/migration';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { auth } from '#lib/server/auth.js';
 import { db } from '#lib/server/db/index.js';
-import { ensureStorage } from '#lib/server/files.js';
+import { ensureStorage } from '#lib/server/media.js';
 
 // Runs once when the server starts: creates or updates the tables.
 export const init: ServerInit = async () => {
 	// Studio's own tables, from the migration files in ./drizzle.
 	await migrate(db, { migrationsFolder: 'drizzle' });
 
-	// The folder files are kept in.
+	// The folder media files are kept in.
 	await ensureStorage();
 
 	// The sign-in tables, which Better Auth looks after itself.

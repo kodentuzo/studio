@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
-import { fileInfo, readFileBytes } from '#lib/server/files.js';
+import { fileInfo, readFileBytes } from '#lib/server/media.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -61,7 +61,7 @@ async function readTransaction(form: FormData) {
 		return { error: 'Choose paid or planned.' };
 	}
 
-	// An attachment is optional. If one is named, it has to be a file in the files folder.
+	// An attachment is optional. If one is named, it has to be a file in the media folder.
 	if (filePath && !(await fileInfo(filePath))) {
 		return { error: 'The attached file does not exist any more. Attach it again.' };
 	}
