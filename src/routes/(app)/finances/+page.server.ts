@@ -3,7 +3,7 @@ import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
-import { readVaultBytes, vaultFileInfo } from '#lib/server/vault.js';
+import { readVaultBytes, saveToVault, vaultFileInfo } from '#lib/server/vault.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -79,6 +79,22 @@ async function readTransaction(form: FormData) {
 }
 
 export const actions: Actions = {
+	// Stores an invoice or receipt in the vault, in this month's folder. Saves no transaction:
+	// the page attaches the stored file to the one in the form.
+	upload: async ({ request }) => {
+		const form = await request.formData();
+		const file = form.get('file');
+
+		if (!(file instanceof File)) {
+			return fail(400, { action: 'upload', error: 'Choose a file.' });
+		}
+
+		const result = await saveToVault(file);
+		if ('error' in result) return fail(422, { action: 'upload', error: result.error });
+
+		return { file: result };
+	},
+
 	add: async ({ request }) => {
 		const input = await readTransaction(await request.formData());
 		if ('error' in input) return fail(400, { action: 'add', error: input.error });

@@ -5,9 +5,7 @@ export function vaultUrl(path: string) {
 	return `/vault/raw/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-/**
- * Stores a file in the vault. With `dir` it goes into that folder; without, into this month's.
- */
-export function uploadToVault(file: File, dir?: string) {
-	return uploadThrough('/vault?/upload', file, dir);
+/** Stores a file in the vault through the Finances page, in this month's folder. */
+export function uploadToVault(file: File) {
+	return uploadThrough('/finances?/upload', file);
 }
