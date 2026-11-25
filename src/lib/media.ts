@@ -22,7 +22,7 @@ export async function callAction(url: string, body: FormData) {
 
 export type UploadedFile = { path: string; name: string; contentType: string };
 
-/** Stores a file through an upload action, such as "/media?/upload". */
+/** Stores a file through an upload action, such as "?/uploadIcon". */
 export async function uploadThrough(
 	action: string,
 	file: File,
@@ -42,12 +42,4 @@ export async function uploadThrough(
 				? String(result.data?.error ?? 'The file could not be stored.')
 				: 'The file could not be stored.'
 	};
-}
-
-/**
- * Stores a file in the media folder. With `dir` it goes into that folder; without, into this
- * month's.
- */
-export function uploadMedia(file: File, dir?: string) {
-	return uploadThrough('/media?/upload', file, dir);
 }

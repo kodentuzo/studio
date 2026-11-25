@@ -1,7 +1,7 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
-	import { callAction, fileName, mediaUrl, uploadMedia } from "#lib/media.js";
+	import { callAction, fileName, mediaUrl, uploadThrough } from "#lib/media.js";
 	import { toWebManifest } from "#lib/manifest.js";
 	import {
 		checkIconSource,
@@ -145,7 +145,7 @@
 			if (problem) {
 				iconError = problem;
 			} else {
-				const stored = await uploadMedia(file, `projects/${data.project.slug}`);
+				const stored = await uploadThrough("?/uploadIcon", file);
 
 				if ("error" in stored) {
 					iconError = stored.error;

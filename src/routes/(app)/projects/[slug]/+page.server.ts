@@ -35,6 +35,21 @@ function isInProjectFolder(path: string, slug: string) {
 }
 
 export const actions: Actions = {
+	// Stores an image picked as the icon, in the project's own folder.
+	uploadIcon: async ({ request, params }) => {
+		const form = await request.formData();
+		const file = form.get('file');
+
+		if (!(file instanceof File)) {
+			return fail(400, { action: 'uploadIcon', error: 'Choose a file.' });
+		}
+
+		const result = await saveUpload(file, projectFolder(params.slug));
+		if ('error' in result) return fail(422, { action: 'uploadIcon', error: result.error });
+
+		return { file: result };
+	},
+
 	// Cuts an uploaded image down to a square and stores the result as a new PNG. The picked
 	// image is then removed, unless something uses it. Returns the new file's path.
 	cropIcon: async ({ request, params }) => {

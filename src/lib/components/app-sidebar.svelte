@@ -1,6 +1,5 @@
 <script lang="ts" module>
 	import CassetteTapeIcon from "@lucide/svelte/icons/cassette-tape";
-	import FolderIcon from "@lucide/svelte/icons/folder";
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import LibraryIcon from "@lucide/svelte/icons/library";
@@ -30,11 +29,6 @@
 				title: "Finances",
 				url: "/finances",
 				icon: WalletIcon,
-			},
-			{
-				title: "Media",
-				url: "/media",
-				icon: FolderIcon,
 			},
 			{
 				title: "Vault",
