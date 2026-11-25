@@ -1,5 +1,7 @@
 # Kodentuzo Studio
 
+> Self-hosted app for running a small team: projects, files, finances and deploys.
+
 Self-hosted app for a small team: projects, files and finances today. Deploying your own web
 apps from it is planned.
 
