@@ -9,7 +9,6 @@
 	import * as Breadcrumb from "#lib/components/ui/breadcrumb/index.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Table from "#lib/components/ui/table/index.js";
-	import { Badge } from "#lib/components/ui/badge/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import type { PageProps } from "./$types";
 
@@ -18,7 +17,7 @@
 	let picker = $state<HTMLInputElement | null>(null);
 	let uploading = $state(false);
 
-	// The unused file waiting for a yes or no on deleting it.
+	// The file waiting for a yes or no on deleting it.
 	let deleting = $state<(typeof data.files)[number] | null>(null);
 
 	// The folders leading to this one, for the trail at the top: 2026, then 2026/11.
@@ -149,7 +148,6 @@
 		<Table.Header>
 			<Table.Row>
 				<Table.Head>Name</Table.Head>
-				<Table.Head>Used by</Table.Head>
 				<Table.Head>Changed</Table.Head>
 				<Table.Head class="text-end">Size</Table.Head>
 				<Table.Head><span class="sr-only">Actions</span></Table.Head>
@@ -158,7 +156,7 @@
 		<Table.Body>
 			{#each data.folders as folder (folder.path)}
 				<Table.Row>
-					<Table.Cell class="font-medium" colspan={5}>
+					<Table.Cell class="font-medium" colspan={4}>
 						<a href={folderUrl(folder.path)} class="flex items-center gap-2 hover:underline">
 							<FolderIcon class="size-4 text-muted-foreground" />
 							{folder.name}
@@ -179,28 +177,13 @@
 							{file.name}
 						</a>
 					</Table.Cell>
-					<Table.Cell>
-						{#if file.iconOf.length === 0}
-							<Badge variant="outline">Unused</Badge>
-						{:else}
-							<div class="flex flex-col gap-1">
-								{#each file.iconOf as project (project.slug)}
-									<a href="/projects/{project.slug}" class="hover:underline">
-										Icon of {project.name}
-									</a>
-								{/each}
-							</div>
-						{/if}
-					</Table.Cell>
 					<Table.Cell>{dateFormat.format(file.modified)}</Table.Cell>
 					<Table.Cell class="text-end tabular-nums">{size(file.size)}</Table.Cell>
 					<Table.Cell class="text-end">
-						{#if file.iconOf.length === 0}
-							<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
-								<TrashIcon />
-								<span class="sr-only">Delete</span>
-							</Button>
-						{/if}
+						<Button variant="ghost" size="icon" onclick={() => (deleting = file)}>
+							<TrashIcon />
+							<span class="sr-only">Delete</span>
+						</Button>
 					</Table.Cell>
 				</Table.Row>
 			{/each}

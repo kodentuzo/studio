@@ -1,5 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
 import { listVault, removeFromVault, saveToVault } from '#lib/server/vault.js';
@@ -9,30 +9,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const listing = await listVault(url.searchParams.get('dir') ?? '');
 	if (!listing) error(404, 'That folder does not exist.');
 
-	// Which of these files a transaction points at.
-	const paths = listing.files.map((file) => file.path);
-	const uses = paths.length
-		? await db
-				.select({
-					id: transactions.id,
-					date: transactions.date,
-					counterparty: transactions.counterparty,
-					filePath: transactions.filePath
-				})
-				.from(transactions)
-				.where(inArray(transactions.filePath, paths))
-		: [];
-
-	return {
-		dir: listing.dir,
-		folders: listing.folders,
-		files: listing.files.map((file) => ({
-			...file,
-			uses: uses
-				.filter((use) => use.filePath === file.path)
-				.map(({ id, date, counterparty }) => ({ id, date, counterparty }))
-		}))
-	};
+	return listing;
 };
 
 export const actions: Actions = {

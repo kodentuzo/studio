@@ -1,5 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
 import { listFolder, removeFile, saveUpload } from '#lib/server/media.js';
@@ -9,25 +9,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	const listing = await listFolder(url.searchParams.get('dir') ?? '');
 	if (!listing) error(404, 'That folder does not exist.');
 
-	// Which of these files are a project's icon.
-	const paths = listing.files.map((file) => file.path);
-	const icons = paths.length
-		? await db
-				.select({ slug: projects.slug, name: projects.name, iconPath: projects.iconPath })
-				.from(projects)
-				.where(inArray(projects.iconPath, paths))
-		: [];
-
-	return {
-		dir: listing.dir,
-		folders: listing.folders,
-		files: listing.files.map((file) => ({
-			...file,
-			iconOf: icons
-				.filter((icon) => icon.iconPath === file.path)
-				.map(({ slug, name }) => ({ slug, name }))
-		}))
-	};
+	return listing;
 };
 
 export const actions: Actions = {
