@@ -3,6 +3,7 @@
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import { enhance } from "$app/forms";
 	import { mediaUrl } from "#lib/media.js";
+	import { suggestSlug } from "#lib/slug.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Sheet from "#lib/components/ui/sheet/index.js";
@@ -18,19 +19,6 @@
 	let slug = $state("");
 	// Once the slug is typed by hand, it stops following the name.
 	let slugEdited = $state(false);
-
-	// "My Blog!" becomes "my-blog".
-	function suggestSlug(value: string) {
-		return value
-			.toLowerCase()
-			.normalize("NFKD")
-			// Drop accents, so "crêpe" becomes "crepe" and not "cre-pe".
-			.replace(/[\u0300-\u036f]/g, "")
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-+|-+$/g, "")
-			.slice(0, 40)
-			.replace(/-+$/, "");
-	}
 
 	function startNew() {
 		name = "";
