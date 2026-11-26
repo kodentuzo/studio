@@ -42,6 +42,10 @@ export const transactions = pgTable(
 	'transactions',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
+		// The team whose money it is. Deleting a team deletes its transactions.
+		teamId: uuid('team_id')
+			.notNull()
+			.references(() => teams.id, { onDelete: 'cascade' }),
 		date: date('date').notNull(),
 		amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
 		currency: char('currency', { length: 3 }).notNull().default('EUR'),
@@ -56,21 +60,25 @@ export const transactions = pgTable(
 	(table) => [
 		check('transactions_amount_not_zero', sql`${table.amount} <> 0`),
 		check('transactions_status_known', sql`${table.status} in ('planned', 'paid')`),
-		// There is at most one opening balance.
+		// Each team has at most one opening balance.
 		uniqueIndex('transactions_one_opening')
-			.on(table.source)
+			.on(table.teamId, table.source)
 			.where(sql`${table.source} = 'opening'`)
 	]
 );
 
 // The invoices, receipts and other papers that belong to a transaction. Each one is a file in
-// the media folder's "finances" folder, named after its id. Nobody browses that folder, so the
-// name the file was uploaded under is kept here.
+// the "finances" folder of its team's part of the media folder, named after its id. Nobody
+// browses that folder, so the name the file was uploaded under is kept here.
 export const transactionDocuments = pgTable(
 	'transaction_documents',
 	{
 		// Also the file's name on disk, with an ending for its type: <id>.pdf.
 		id: uuid('id').primaryKey().defaultRandom(),
+		// The team it belongs to, known from the moment it is uploaded.
+		teamId: uuid('team_id')
+			.notNull()
+			.references(() => teams.id, { onDelete: 'cascade' }),
 		// Empty between the upload and the save of the transaction it was uploaded for. One left
 		// that way was never saved, and is cleared out after a day.
 		transactionId: uuid('transaction_id').references(() => transactions.id, {

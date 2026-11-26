@@ -13,12 +13,15 @@ import {
 	storeDocument
 } from '#lib/server/documents.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
+import { requireTeam } from '#lib/server/teams.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ params }) => {
+	const team = await requireTeam(params.team);
 	const rows = await db
 		.select()
 		.from(transactions)
+		.where(eq(transactions.teamId, team.id))
 		// Newest first, and the opening balance always last: it comes before everything.
 		.orderBy(
 			sql`${transactions.source} = 'opening'`,
@@ -36,7 +39,7 @@ export const load: PageServerLoad = async () => {
 			expenses: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} < 0 and ${transactions.source} <> 'opening'), 0)`
 		})
 		.from(transactions)
-		.where(eq(transactions.status, 'paid'));
+		.where(and(eq(transactions.teamId, team.id), eq(transactions.status, 'paid')));
 
 	// Each transaction's documents, oldest first.
 	const documents = await db
@@ -47,7 +50,12 @@ export const load: PageServerLoad = async () => {
 			contentType: transactionDocuments.contentType
 		})
 		.from(transactionDocuments)
-		.where(isNotNull(transactionDocuments.transactionId))
+		.where(
+			and(
+				eq(transactionDocuments.teamId, team.id),
+				isNotNull(transactionDocuments.transactionId)
+			)
+		)
 		.orderBy(transactionDocuments.createdAt);
 
 	const opening = rows.find((row) => row.source === 'opening') ?? null;
@@ -117,7 +125,8 @@ function readTransaction(form: FormData) {
 export const actions: Actions = {
 	// Stores an invoice, a receipt or another paper as a document. Saves no transaction: the
 	// document is attached when the transaction in the form is saved.
-	upload: async ({ request }) => {
+	upload: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const file = form.get('file');
 
@@ -126,28 +135,30 @@ export const actions: Actions = {
 		}
 
 		// A good moment to clear out documents whose transaction was never saved.
-		await removeStrayDocuments();
+		await removeStrayDocuments(team);
 
-		const result = await storeDocument(file);
+		const result = await storeDocument(team, file);
 		if ('error' in result) return fail(422, { action: 'upload', error: result.error });
 
 		return { document: result };
 	},
 
-	add: async ({ request }) => {
+	add: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const input = readTransaction(await request.formData());
 		if ('error' in input) return fail(400, { action: 'add', error: input.error });
 
 		const [added] = await db
 			.insert(transactions)
-			.values(input.values)
+			.values({ ...input.values, teamId: team.id })
 			.returning({ id: transactions.id });
-		await setTransactionDocuments(added.id, input.documentIds);
+		await setTransactionDocuments(team, added.id, input.documentIds);
 
 		return { added: true };
 	},
 
-	edit: async ({ request }) => {
+	edit: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 
@@ -162,18 +173,25 @@ export const actions: Actions = {
 		const [edited] = await db
 			.update(transactions)
 			.set(input.values)
-			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')))
+			.where(
+				and(
+					eq(transactions.teamId, team.id),
+					eq(transactions.id, id),
+					ne(transactions.source, 'opening')
+				)
+			)
 			.returning({ id: transactions.id });
-		if (edited) await setTransactionDocuments(edited.id, input.documentIds);
+		if (edited) await setTransactionDocuments(team, edited.id, input.documentIds);
 
 		return { edited: true };
 	},
 
 	// Reads a stored PDF document as an invoice and returns its fields. Saves nothing: the page fills in the
 	// add form with them, and the person checks and saves.
-	readInvoice: async ({ request }) => {
+	readInvoice: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
-		const document = await findDocument(String(form.get('documentId') ?? ''));
+		const document = await findDocument(team, String(form.get('documentId') ?? ''));
 		if (!document) {
 			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -184,7 +202,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const bytes = await readDocumentBytes(document);
+		const bytes = await readDocumentBytes(team, document);
 		if (!bytes) {
 			return fail(404, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -197,7 +215,8 @@ export const actions: Actions = {
 		return { invoice: result.fields };
 	},
 
-	remove: async ({ request }) => {
+	remove: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 
@@ -206,20 +225,27 @@ export const actions: Actions = {
 		}
 
 		// Its documents go with it: the rows by themselves, the files here.
-		const documents = await documentsOf(id);
+		const documents = await documentsOf(team, id);
 
 		// The opening balance is removed by setting it to 0 in its own form.
 		const [removed] = await db
 			.delete(transactions)
-			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')))
+			.where(
+				and(
+					eq(transactions.teamId, team.id),
+					eq(transactions.id, id),
+					ne(transactions.source, 'opening')
+				)
+			)
 			.returning({ id: transactions.id });
-		if (removed) await removeDocuments(documents);
+		if (removed) await removeDocuments(team, documents);
 
 		return { removed: true };
 	},
 
 	// Turns a planned row into a paid one, once the money has moved.
-	markPaid: async ({ request }) => {
+	markPaid: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 
@@ -230,13 +256,20 @@ export const actions: Actions = {
 		await db
 			.update(transactions)
 			.set({ status: 'paid' })
-			.where(and(eq(transactions.id, id), eq(transactions.status, 'planned')));
+			.where(
+				and(
+					eq(transactions.teamId, team.id),
+					eq(transactions.id, id),
+					eq(transactions.status, 'planned')
+				)
+			);
 
 		return { markedPaid: true };
 	},
 
 	// Sets, changes or clears the one opening balance row.
-	opening: async ({ request }) => {
+	opening: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const amount = String(form.get('amount') ?? '').trim();
 
@@ -246,16 +279,19 @@ export const actions: Actions = {
 		}
 
 		await db.transaction(async (tx) => {
-			await tx.delete(transactions).where(eq(transactions.source, 'opening'));
+			await tx
+				.delete(transactions)
+				.where(and(eq(transactions.teamId, team.id), eq(transactions.source, 'opening')));
 			if (Number(amount) !== 0) {
 				// The opening balance has no date of its own. The column needs one, so it takes
 				// the earliest transaction's date, or today. It is never shown.
 				const [earliest] = await tx
 					.select({ date: sql<string | null>`min(${transactions.date})` })
 					.from(transactions)
-					.where(ne(transactions.source, 'opening'));
+					.where(and(eq(transactions.teamId, team.id), ne(transactions.source, 'opening')));
 
 				await tx.insert(transactions).values({
+					teamId: team.id,
 					date: earliest?.date ?? new Date().toISOString().slice(0, 10),
 					amount,
 					counterparty: 'Opening balance',

@@ -1,11 +1,12 @@
 import { error } from '@sveltejs/kit';
 import { openDocument } from '#lib/server/documents.js';
+import { requireTeam } from '#lib/server/teams.js';
 import type { RequestHandler } from './$types';
 
-// Serves one transaction document, by its id. It sits behind the sign-in guard like every
+// Serves one of a team's transaction documents, by its id. It sits behind the sign-in guard like every
 // other page: the file has no other address.
 export const GET: RequestHandler = async ({ params }) => {
-	const document = await openDocument(params.id);
+	const document = await openDocument(await requireTeam(params.team), params.id);
 	if (!document) error(404, 'That document does not exist.');
 
 	return new Response(document.body, {

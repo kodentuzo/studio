@@ -301,7 +301,7 @@
 					<div class="flex items-center gap-2">
 						<PaperclipIcon class="size-4 shrink-0 text-muted-foreground" />
 						<a
-							href={documentUrl(document.id)}
+							href={documentUrl(data.team.slug, document.id)}
 							target="_blank"
 							rel="noopener"
 							class="truncate text-sm hover:underline"
@@ -548,7 +548,7 @@
 							{transaction.counterparty}
 							{#each transaction.documents as document (document.id)}
 								<a
-									href={documentUrl(document.id)}
+									href={documentUrl(data.team.slug, document.id)}
 									target="_blank"
 									rel="noopener"
 									title={document.name}

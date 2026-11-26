@@ -55,8 +55,7 @@
 			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
 			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
 			{ title: "Registry", url: `${base}/registry`, icon: LibraryIcon },
-			// Finances has not moved under the team yet.
-			{ title: "Finances", url: "/finances", icon: WalletIcon },
+			{ title: "Finances", url: `${base}/finances`, icon: WalletIcon },
 			{ title: "Settings", url: `${base}/settings`, icon: SettingsIcon },
 		];
 	});

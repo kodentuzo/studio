@@ -1,11 +1,13 @@
 import { and, eq, gte, lte, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
+import { requireTeam } from '#lib/server/teams.js';
 import type { PageServerLoad } from './$types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ params }) => {
+	const team = await requireTeam(params.team);
 	const year = new Date().getUTCFullYear();
 
 	// Income and expenses per month of this year, paid rows only. The opening balance is neither.
@@ -18,6 +20,7 @@ export const load: PageServerLoad = async () => {
 		.from(transactions)
 		.where(
 			and(
+				eq(transactions.teamId, team.id),
 				gte(transactions.date, `${year}-01-01`),
 				lte(transactions.date, `${year}-12-31`),
 				ne(transactions.source, 'opening'),
