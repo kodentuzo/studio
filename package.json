@@ -13,6 +13,7 @@
 		"dev:down": "docker compose --profile ai down",
 		"ai:up": "docker compose --profile ai up --detach --wait ollama && docker compose --profile ai exec ollama ollama pull granite3.3:2b",
 		"db:generate": "drizzle-kit generate",
+		"db:seed": "node --env-file=.env scripts/seed.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
