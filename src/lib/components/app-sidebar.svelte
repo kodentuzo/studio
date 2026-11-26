@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
+	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
@@ -49,11 +50,12 @@
 		teams: { slug: string; name: string }[];
 	} = $props();
 
-	// Only the places a team keeps things. Its overview is where choosing it in the switcher leads.
+	// The team's overview, then the places it keeps things.
 	const navMain = $derived.by(() => {
 		if (!team) return [];
 		const base = `/teams/${team.slug}`;
 		return [
+			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
 			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
 			{ title: "Finances", url: `${base}/finances`, icon: WalletIcon },
 			{ title: "Settings", url: `${base}/settings`, icon: SettingsIcon },
