@@ -14,6 +14,28 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 
+// A group of people and everything they keep in Studio. Each team has its own address,
+// /teams/<slug>, and what belongs to a team points at its id. A team's settings will be columns
+// here.
+export const teams = pgTable(
+	'teams',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		// The short name in the team's address. Other tables point at the id, never at this.
+		slug: text('slug').notNull().unique(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [
+		check(
+			'teams_slug_shape',
+			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`
+		),
+		check('teams_name_length', sql`char_length(${table.name}) between 1 and 45`)
+	]
+);
+
 // Money in and money out, one row each. A negative amount is money out, a positive one money in.
 export const transactions = pgTable(
 	'transactions',
