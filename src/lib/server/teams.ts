@@ -2,7 +2,14 @@ import { error } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { teams } from './db/schema.js';
-import { fileInfo, openFile, readFileBytes, removeFile, saveUpload } from './media.js';
+import {
+	fileInfo,
+	openFile,
+	readFileBytes,
+	removeFile,
+	removeFolder,
+	saveUpload
+} from './media.js';
 
 export type Team = typeof teams.$inferSelect;
 
@@ -37,6 +44,8 @@ export function teamMedia(team: { slug: string }) {
 		open: (path: string) => openFile(inside(path)),
 		read: (path: string) => readFileBytes(inside(path)),
 		remove: (path: string) => removeFile(inside(path)),
+		/** Deletes every file the team has. For when the team itself is deleted. */
+		removeAll: () => removeFolder(root),
 		async save(file: File, dir: string) {
 			const stored = await saveUpload(file, inside(dir));
 			return 'error' in stored ? stored : { ...stored, path: stored.path.slice(root.length + 1) };

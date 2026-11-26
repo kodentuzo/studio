@@ -208,3 +208,22 @@ export async function removeFile(path: string): Promise<boolean> {
 
 	return true;
 }
+
+/**
+ * Deletes a folder and everything in it. Refuses the media folder itself, and anything that is
+ * not a folder inside it. True also when the folder was never there: the outcome is the same.
+ */
+export async function removeFolder(path: string): Promise<boolean> {
+	const full = locate(path);
+	if (!full || full === root) return false;
+
+	try {
+		if (!(await lstat(full)).isDirectory()) return false;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === 'ENOENT';
+	}
+	if (!(await isInside(full))) return false;
+
+	await rm(full, { recursive: true });
+	return true;
+}
