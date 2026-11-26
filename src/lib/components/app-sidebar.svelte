@@ -1,8 +1,6 @@
 <script lang="ts" module>
 	import CassetteTapeIcon from "@lucide/svelte/icons/cassette-tape";
-	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
-	import LibraryIcon from "@lucide/svelte/icons/library";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
@@ -48,13 +46,12 @@
 		team: { slug: string; name: string } | null;
 	} = $props();
 
+	// Only the places a team keeps things. The team's overview is where "Studio" at the top leads.
 	const navMain = $derived.by(() => {
 		if (!team) return [];
 		const base = `/teams/${team.slug}`;
 		return [
-			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
 			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
-			{ title: "Registry", url: `${base}/registry`, icon: LibraryIcon },
 			{ title: "Finances", url: `${base}/finances`, icon: WalletIcon },
 			{ title: "Settings", url: `${base}/settings`, icon: SettingsIcon },
 		];
@@ -67,7 +64,7 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg">
 					{#snippet child({ props })}
-						<a href="/" {...props}>
+						<a href={team ? `/teams/${team.slug}` : "/"} {...props}>
 							<div
 								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
 							>
