@@ -9,33 +9,6 @@
 
 	// This is sample data.
 	const data = {
-		navMain: [
-			{
-				title: "Overview",
-				url: "/",
-				icon: LayoutDashboardIcon,
-			},
-			{
-				title: "Projects",
-				url: "/projects",
-				icon: AppWindowIcon,
-			},
-			{
-				title: "Registry",
-				url: "/registry",
-				icon: LibraryIcon,
-			},
-			{
-				title: "Finances",
-				url: "/finances",
-				icon: WalletIcon,
-			},
-			{
-				title: "Settings",
-				url: "/settings",
-				icon: SettingsIcon,
-			},
-		],
 		projects: [
 			{
 				name: "blog 1.4.0",
@@ -67,10 +40,26 @@
 		ref = $bindable(null),
 		collapsible = "icon",
 		user,
+		team,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
+		// The team the links lead into, or null when there is no team at all.
+		team: { slug: string; name: string } | null;
 	} = $props();
+
+	const navMain = $derived.by(() => {
+		if (!team) return [];
+		const base = `/teams/${team.slug}`;
+		return [
+			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
+			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
+			{ title: "Registry", url: `${base}/registry`, icon: LibraryIcon },
+			// Finances has not moved under the team yet.
+			{ title: "Finances", url: "/finances", icon: WalletIcon },
+			{ title: "Settings", url: `${base}/settings`, icon: SettingsIcon },
+		];
+	});
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
@@ -93,7 +82,7 @@
 		</Sidebar.Menu>
 	</Sidebar.Header>
 	<Sidebar.Content>
-		<NavMain items={data.navMain} />
+		<NavMain items={navMain} />
 		<NavProjects projects={data.projects} />
 	</Sidebar.Content>
 	<Sidebar.Footer>

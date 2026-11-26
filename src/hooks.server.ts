@@ -39,7 +39,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const isAuthApi = event.url.pathname.startsWith('/api/auth');
 
 	// A project's media files are public: anyone with the address can open one.
-	const isProjectMedia = event.route.id === '/media/projects/[slug]/[name]';
+	const isProjectMedia = event.route.id === '/(app)/teams/[team]/media/projects/[slug]/[name]';
 
 	// Everything else needs a signed-in user, except signing in itself.
 	if (!event.locals.user && !isAuthPage && !isAuthApi && !isProjectMedia) {

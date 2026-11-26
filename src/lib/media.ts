@@ -1,11 +1,12 @@
 import { deserialize } from '$app/forms';
 
 /**
- * The public address of a file in the media folder. Only files in a project's folder, such as
- * "projects/blog/icon.png", are served. Each part of the path is escaped on its own.
+ * The public address of a file in a team's part of the media folder. Only files in a project's
+ * folder, such as "projects/blog/icon.png", are served. Each part of the path is escaped on its
+ * own.
  */
-export function mediaUrl(path: string) {
-	return `/media/${path.split('/').map(encodeURIComponent).join('/')}`;
+export function mediaUrl(team: string, path: string) {
+	return `/teams/${team}/media/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 /** The last part of a path: "2026/11/invoice.pdf" gives "invoice.pdf". */

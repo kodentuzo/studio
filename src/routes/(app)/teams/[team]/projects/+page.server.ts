@@ -1,16 +1,23 @@
 import { fail } from '@sveltejs/kit';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
+import { requireTeam } from '#lib/server/teams.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
-	const rows = await db.select().from(projects).orderBy(asc(projects.name));
+export const load: PageServerLoad = async ({ params }) => {
+	const team = await requireTeam(params.team);
+	const rows = await db
+		.select()
+		.from(projects)
+		.where(eq(projects.teamId, team.id))
+		.orderBy(asc(projects.name));
 	return { projects: rows };
 };
 
 export const actions: Actions = {
-	create: async ({ request }) => {
+	create: async ({ request, params }) => {
+		const team = await requireTeam(params.team);
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const slug = String(form.get('slug') ?? '').trim();
@@ -32,18 +39,18 @@ export const actions: Actions = {
 		const [taken] = await db
 			.select({ id: projects.id })
 			.from(projects)
-			.where(eq(projects.slug, slug))
+			.where(and(eq(projects.teamId, team.id), eq(projects.slug, slug)))
 			.limit(1);
 		if (taken) {
 			return fail(409, { action: 'create', error: `The slug "${slug}" is already used.` });
 		}
 
 		// Two people creating the same slug at the same instant: the second insert is skipped by
-		// the unique rule on the column and returns nothing.
+		// the rule that a team's slugs are unique and returns nothing.
 		const [created] = await db
 			.insert(projects)
-			.values({ name, slug })
-			.onConflictDoNothing({ target: projects.slug })
+			.values({ teamId: team.id, name, slug })
+			.onConflictDoNothing({ target: [projects.teamId, projects.slug] })
 			.returning({ slug: projects.slug });
 		if (!created) {
 			return fail(409, { action: 'create', error: `The slug "${slug}" is already used.` });

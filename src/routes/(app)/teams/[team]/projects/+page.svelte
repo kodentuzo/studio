@@ -137,10 +137,13 @@
 			{#each data.projects as project (project.id)}
 				<Table.Row>
 					<Table.Cell class="font-medium">
-						<a href="/projects/{project.slug}" class="flex items-center gap-3 hover:underline">
+						<a
+							href="/teams/{data.team.slug}/projects/{project.slug}"
+							class="flex items-center gap-3 hover:underline"
+						>
 							{#if project.iconPath}
 								<img
-									src={mediaUrl(project.iconPath)}
+									src={mediaUrl(data.team.slug, project.iconPath)}
 									alt=""
 									class="size-8 rounded-lg border object-cover"
 								/>
