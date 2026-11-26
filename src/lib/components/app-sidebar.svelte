@@ -1,5 +1,4 @@
 <script lang="ts" module>
-	import CassetteTapeIcon from "@lucide/svelte/icons/cassette-tape";
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
@@ -32,6 +31,7 @@
 	import NavMain from "./nav-main.svelte";
 	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
+	import TeamSwitcher from "./team-switcher.svelte";
 	import type { ComponentProps } from "svelte";
 
 	let {
@@ -39,14 +39,17 @@
 		collapsible = "icon",
 		user,
 		team,
+		teams,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
 		// The team the links lead into, or null when there is no team at all.
 		team: { slug: string; name: string } | null;
+		// Every team, for the switcher at the top.
+		teams: { slug: string; name: string }[];
 	} = $props();
 
-	// Only the places a team keeps things. The team's overview is where "Studio" at the top leads.
+	// Only the places a team keeps things. Its overview is where choosing it in the switcher leads.
 	const navMain = $derived.by(() => {
 		if (!team) return [];
 		const base = `/teams/${team.slug}`;
@@ -60,22 +63,9 @@
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		<Sidebar.Menu>
-			<Sidebar.MenuItem>
-				<Sidebar.MenuButton size="lg">
-					{#snippet child({ props })}
-						<a href={team ? `/teams/${team.slug}` : "/"} {...props}>
-							<div
-								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
-							>
-								<CassetteTapeIcon class="size-4" />
-							</div>
-							<span class="truncate font-medium">Studio</span>
-						</a>
-					{/snippet}
-				</Sidebar.MenuButton>
-			</Sidebar.MenuItem>
-		</Sidebar.Menu>
+		{#if team}
+			<TeamSwitcher {team} {teams} />
+		{/if}
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={navMain} />

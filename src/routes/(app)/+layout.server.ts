@@ -13,5 +13,10 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 	const teams = await listTeams();
 	const team = teams.find((team) => team.slug === params.team) ?? teams[0] ?? null;
 
-	return { user: locals.user, team: team && { slug: team.slug, name: team.name } };
+	return {
+		user: locals.user,
+		team: team && { slug: team.slug, name: team.name },
+		// Every team, for the switcher at the top of the sidebar.
+		teams: teams.map(({ slug, name }) => ({ slug, name }))
+	};
 };
