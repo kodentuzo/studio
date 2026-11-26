@@ -5,6 +5,7 @@
 	import LibraryIcon from "@lucide/svelte/icons/library";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
+	import SettingsIcon from "@lucide/svelte/icons/settings";
 
 	// This is sample data.
 	const data = {
@@ -28,6 +29,11 @@
 				title: "Finances",
 				url: "/finances",
 				icon: WalletIcon,
+			},
+			{
+				title: "Settings",
+				url: "/settings",
+				icon: SettingsIcon,
 			},
 		],
 		projects: [
