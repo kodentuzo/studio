@@ -3,6 +3,8 @@ import {
 	char,
 	check,
 	date,
+	index,
+	integer,
 	jsonb,
 	numeric,
 	pgTable,
@@ -26,8 +28,6 @@ export const transactions = pgTable(
 		source: text('source').notNull().default('manual'),
 		// 'paid' means the money has moved. 'planned' is expected and not counted yet.
 		status: text('status').notNull().default('paid'),
-		// The attached invoice or receipt, if any: its path inside the vault.
-		filePath: text('file_path'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [
@@ -38,6 +38,28 @@ export const transactions = pgTable(
 			.on(table.source)
 			.where(sql`${table.source} = 'opening'`)
 	]
+);
+
+// The invoices, receipts and other papers that belong to a transaction. Each one is a file in
+// the media folder's "finances" folder, named after its id. Nobody browses that folder, so the
+// name the file was uploaded under is kept here.
+export const transactionDocuments = pgTable(
+	'transaction_documents',
+	{
+		// Also the file's name on disk, with an ending for its type: <id>.pdf.
+		id: uuid('id').primaryKey().defaultRandom(),
+		// Empty between the upload and the save of the transaction it was uploaded for. One left
+		// that way was never saved, and is cleared out after a day.
+		transactionId: uuid('transaction_id').references(() => transactions.id, {
+			onDelete: 'cascade'
+		}),
+		name: text('name').notNull(),
+		contentType: text('content_type').notNull(),
+		// In bytes.
+		size: integer('size').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(table) => [index('transaction_documents_transaction').on(table.transactionId)]
 );
 
 // An app Studio looks after. For now a project is its branding, shaped like a simple web

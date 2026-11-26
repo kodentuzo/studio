@@ -6,8 +6,8 @@
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { enhance } from "$app/forms";
-	import { callAction, fileName } from "#lib/media.js";
-	import { uploadToVault, vaultUrl } from "#lib/vault.js";
+	import { documentUrl, uploadDocument, type TransactionDocument } from "#lib/documents.js";
+	import { callAction } from "#lib/media.js";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Dialog from "#lib/components/ui/dialog/index.js";
@@ -37,8 +37,8 @@
 	// Which tab of the add sheet is showing: "upload" or "manual".
 	let tab = $state("upload");
 
-	// The file attached to the transaction in the form, if any.
-	let attachment = $state<{ path: string; name: string } | null>(null);
+	// The documents of the transaction in the form: its invoice, receipt and so on.
+	let documents = $state<TransactionDocument[]>([]);
 	let attaching = $state(false);
 	let attachError = $state("");
 
@@ -47,25 +47,26 @@
 	let readError = $state("");
 	let readNote = $state("");
 
-	// The upload tab: store the file, attach it, read it if it can be read, then show the form.
+	// The upload tab: store the file as the first document, read it if it can be read, then
+	// show the form.
 	async function uploadInvoice(file: File) {
 		reading = true;
 		readError = "";
 		readNote = "";
 
-		const stored = await uploadToVault(file);
+		const stored = await uploadDocument(file);
 		if ("error" in stored) {
 			readError = stored.error;
 			reading = false;
 			return;
 		}
 
-		attachment = { path: stored.file.path, name: stored.file.name };
+		documents = [stored.document];
 		kind = "expense";
 
-		if (data.canReadInvoices && stored.file.contentType === "application/pdf") {
+		if (data.canReadInvoices && stored.document.contentType === "application/pdf") {
 			const body = new FormData();
-			body.set("filePath", stored.file.path);
+			body.set("documentId", stored.document.id);
 			const result = await callAction("?/readInvoice", body);
 
 			if (result.type === "success" && result.data?.invoice) {
@@ -95,16 +96,18 @@
 		tab = "manual";
 	}
 
-	// The attachment field on the form: store the file and attach it.
-	async function attachFile(file: File) {
+	// The documents field on the form: store each chosen file and add it to the list.
+	async function attachFiles(files: File[]) {
 		attaching = true;
 		attachError = "";
 
-		const stored = await uploadToVault(file);
-		if ("error" in stored) {
-			attachError = stored.error;
-		} else {
-			attachment = { path: stored.file.path, name: stored.file.name };
+		for (const file of files) {
+			const stored = await uploadDocument(file);
+			if ("error" in stored) {
+				attachError = files.length > 1 ? `${file.name}: ${stored.error}` : stored.error;
+				break;
+			}
+			documents.push(stored.document);
 		}
 
 		attaching = false;
@@ -126,7 +129,7 @@
 		status = "paid";
 		readError = "";
 		readNote = "";
-		attachment = null;
+		documents = [];
 		attachError = "";
 		tab = "upload";
 		open = true;
@@ -141,9 +144,7 @@
 		counterparty = transaction.counterparty;
 		note = transaction.note ?? "";
 		status = transaction.status;
-		attachment = transaction.filePath
-			? { path: transaction.filePath, name: fileName(transaction.filePath) }
-			: null;
+		documents = [...transaction.documents];
 		attachError = "";
 		open = true;
 	}
@@ -203,12 +204,12 @@
 			<Field.Error>{readError}</Field.Error>
 		{:else if data.canReadInvoices}
 			<Field.Description>
-				The file is attached to the transaction. From a PDF with text in it, Studio also reads
+				The file becomes the transaction's first document. From a PDF with text in it, Studio also reads
 				the date, the total and the seller, then shows you the form to check.
 			</Field.Description>
 		{:else}
 			<Field.Description>
-				The file is attached to the transaction. Then you fill in the details.
+				The file becomes the transaction's first document. Then you fill in the details.
 			</Field.Description>
 		{/if}
 	</Field.Field>
@@ -240,7 +241,9 @@
 		{/if}
 		<input type="hidden" name="kind" value={kind} />
 		<input type="hidden" name="status" value={status} />
-		<input type="hidden" name="filePath" value={attachment?.path ?? ""} />
+		{#each documents as document (document.id)}
+			<input type="hidden" name="documentId" value={document.id} />
+		{/each}
 		<Field.Group>
 			<Field.Field>
 				<Field.Label>Kind</Field.Label>
@@ -293,45 +296,53 @@
 				<Input id="note" name="note" type="text" bind:value={note} />
 			</Field.Field>
 			<Field.Field>
-				<Field.Label for="attachment">Attachment</Field.Label>
-				{#if attachment}
+				<Field.Label for="documents">Documents</Field.Label>
+				{#each documents as document (document.id)}
 					<div class="flex items-center gap-2">
 						<PaperclipIcon class="size-4 shrink-0 text-muted-foreground" />
 						<a
-							href={vaultUrl(attachment.path)}
+							href={documentUrl(document.id)}
 							target="_blank"
 							rel="noopener"
 							class="truncate text-sm hover:underline"
 						>
-							{attachment.name}
+							{document.name}
 						</a>
 						<Button
 							type="button"
 							variant="ghost"
 							size="icon"
 							class="ms-auto"
-							onclick={() => (attachment = null)}
+							onclick={() => (documents = documents.filter((other) => other !== document))}
 						>
 							<XIcon />
-							<span class="sr-only">Remove attachment</span>
+							<span class="sr-only">Remove {document.name}</span>
 						</Button>
 					</div>
+				{/each}
+				<Input
+					id="documents"
+					type="file"
+					multiple
+					accept="application/pdf,image/png,image/jpeg,image/webp"
+					disabled={attaching}
+					onchange={(event) => {
+						const input = event.currentTarget;
+						const files = [...(input.files ?? [])];
+						// Emptied, so the same file can be chosen again after removing it.
+						input.value = "";
+						if (files.length) attachFiles(files);
+					}}
+				/>
+				{#if attaching}
+					<Field.Description>Storing…</Field.Description>
+				{:else if attachError}
+					<Field.Error>{attachError}</Field.Error>
 				{:else}
-					<Input
-						id="attachment"
-						type="file"
-						accept="application/pdf,image/png,image/jpeg,image/webp"
-						disabled={attaching}
-						onchange={(event) => {
-							const file = event.currentTarget.files?.[0];
-							if (file) attachFile(file);
-						}}
-					/>
-					{#if attaching}
-						<Field.Description>Storing the file…</Field.Description>
-					{:else if attachError}
-						<Field.Error>{attachError}</Field.Error>
-					{/if}
+					<Field.Description>
+						The invoice, a receipt, anything that belongs to this transaction. A removed
+						document is deleted when you save.
+					</Field.Description>
 				{/if}
 			</Field.Field>
 			<Field.Field>
@@ -535,17 +546,18 @@
 					<Table.Cell class="font-medium">
 						<span class="flex items-center gap-2">
 							{transaction.counterparty}
-							{#if transaction.filePath}
+							{#each transaction.documents as document (document.id)}
 								<a
-									href={vaultUrl(transaction.filePath)}
+									href={documentUrl(document.id)}
 									target="_blank"
 									rel="noopener"
+									title={document.name}
 									class="text-muted-foreground hover:text-foreground"
 								>
 									<PaperclipIcon class="size-4" />
-									<span class="sr-only">Open {fileName(transaction.filePath)}</span>
+									<span class="sr-only">Open {document.name}</span>
 								</a>
-							{/if}
+							{/each}
 						</span>
 					</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{transaction.note ?? ""}</Table.Cell>

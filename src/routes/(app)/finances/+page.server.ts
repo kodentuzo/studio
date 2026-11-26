@@ -1,9 +1,18 @@
 import { fail } from '@sveltejs/kit';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
-import { transactions } from '#lib/server/db/schema.js';
+import { transactionDocuments, transactions } from '#lib/server/db/schema.js';
+import {
+	documentsOf,
+	findDocument,
+	isDocumentId,
+	readDocumentBytes,
+	removeDocuments,
+	removeStrayDocuments,
+	setTransactionDocuments,
+	storeDocument
+} from '#lib/server/documents.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
-import { readVaultBytes, saveToVault, vaultFileInfo } from '#lib/server/vault.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -29,20 +38,48 @@ export const load: PageServerLoad = async () => {
 		.from(transactions)
 		.where(eq(transactions.status, 'paid'));
 
+	// Each transaction's documents, oldest first.
+	const documents = await db
+		.select({
+			id: transactionDocuments.id,
+			transactionId: transactionDocuments.transactionId,
+			name: transactionDocuments.name,
+			contentType: transactionDocuments.contentType
+		})
+		.from(transactionDocuments)
+		.where(isNotNull(transactionDocuments.transactionId))
+		.orderBy(transactionDocuments.createdAt);
+
 	const opening = rows.find((row) => row.source === 'opening') ?? null;
 
-	return { transactions: rows, totals, opening, canReadInvoices: invoiceReadingEnabled };
+	return {
+		transactions: rows.map((row) => ({
+			...row,
+			documents: documents
+				.filter((document) => document.transactionId === row.id)
+				.map(({ id, name, contentType }) => ({ id, name, contentType }))
+		})),
+		totals,
+		opening,
+		canReadInvoices: invoiceReadingEnabled
+	};
 };
 
-/** Checks the fields of the add and edit forms. Returns the row to save, or what is wrong. */
-async function readTransaction(form: FormData) {
+// More than anyone attaches by hand; it only stops a form from naming thousands.
+const MAX_DOCUMENTS = 20;
+
+/**
+ * Checks the fields of the add and edit forms. Returns the row to save and the ids of the
+ * documents it should have, or what is wrong.
+ */
+function readTransaction(form: FormData) {
 	const kind = String(form.get('kind') ?? '');
 	const date = String(form.get('date') ?? '');
 	const amount = String(form.get('amount') ?? '').trim();
 	const counterparty = String(form.get('counterparty') ?? '').trim();
 	const note = String(form.get('note') ?? '').trim();
 	const status = String(form.get('status') ?? '');
-	const filePath = String(form.get('filePath') ?? '');
+	const documentIds = form.getAll('documentId').map(String);
 
 	if (kind !== 'expense' && kind !== 'income') {
 		return { error: 'Choose expense or income.' };
@@ -61,9 +98,8 @@ async function readTransaction(form: FormData) {
 		return { error: 'Choose paid or planned.' };
 	}
 
-	// An attachment is optional. If one is named, it has to be a file in the vault.
-	if (filePath && !(await vaultFileInfo(filePath))) {
-		return { error: 'The attached file does not exist any more. Attach it again.' };
+	if (documentIds.length > MAX_DOCUMENTS || !documentIds.every(isDocumentId)) {
+		return { error: `A transaction can have at most ${MAX_DOCUMENTS} documents.` };
 	}
 
 	return {
@@ -72,15 +108,15 @@ async function readTransaction(form: FormData) {
 			amount: kind === 'expense' ? `-${amount}` : amount,
 			counterparty,
 			note: note || null,
-			status,
-			filePath: filePath || null
-		}
+			status
+		},
+		documentIds
 	};
 }
 
 export const actions: Actions = {
-	// Stores an invoice or receipt in the vault, in this month's folder. Saves no transaction:
-	// the page attaches the stored file to the one in the form.
+	// Stores an invoice, a receipt or another paper as a document. Saves no transaction: the
+	// document is attached when the transaction in the form is saved.
 	upload: async ({ request }) => {
 		const form = await request.formData();
 		const file = form.get('file');
@@ -89,17 +125,24 @@ export const actions: Actions = {
 			return fail(400, { action: 'upload', error: 'Choose a file.' });
 		}
 
-		const result = await saveToVault(file);
+		// A good moment to clear out documents whose transaction was never saved.
+		await removeStrayDocuments();
+
+		const result = await storeDocument(file);
 		if ('error' in result) return fail(422, { action: 'upload', error: result.error });
 
-		return { file: result };
+		return { document: result };
 	},
 
 	add: async ({ request }) => {
-		const input = await readTransaction(await request.formData());
+		const input = readTransaction(await request.formData());
 		if ('error' in input) return fail(400, { action: 'add', error: input.error });
 
-		await db.insert(transactions).values(input.values);
+		const [added] = await db
+			.insert(transactions)
+			.values(input.values)
+			.returning({ id: transactions.id });
+		await setTransactionDocuments(added.id, input.documentIds);
 
 		return { added: true };
 	},
@@ -112,36 +155,36 @@ export const actions: Actions = {
 			return fail(400, { action: 'edit', error: 'That transaction does not exist.' });
 		}
 
-		const input = await readTransaction(form);
+		const input = readTransaction(form);
 		if ('error' in input) return fail(400, { action: 'edit', error: input.error });
 
 		// The opening balance has its own form, so it is never changed from here.
-		await db
+		const [edited] = await db
 			.update(transactions)
 			.set(input.values)
-			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')));
+			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')))
+			.returning({ id: transactions.id });
+		if (edited) await setTransactionDocuments(edited.id, input.documentIds);
 
 		return { edited: true };
 	},
 
-	// Reads a stored PDF invoice and returns its fields. Saves nothing: the page fills in the
+	// Reads a stored PDF document as an invoice and returns its fields. Saves nothing: the page fills in the
 	// add form with them, and the person checks and saves.
 	readInvoice: async ({ request }) => {
 		const form = await request.formData();
-		const path = String(form.get('filePath') ?? '');
-
-		const info = await vaultFileInfo(path);
-		if (!info) {
+		const document = await findDocument(String(form.get('documentId') ?? ''));
+		if (!document) {
 			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
-		if (info.contentType !== 'application/pdf') {
+		if (document.contentType !== 'application/pdf') {
 			return fail(422, {
 				action: 'readInvoice',
 				error: 'Only PDF invoices can be read. Enter this one by hand.'
 			});
 		}
 
-		const bytes = await readVaultBytes(path);
+		const bytes = await readDocumentBytes(document);
 		if (!bytes) {
 			return fail(404, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -162,10 +205,15 @@ export const actions: Actions = {
 			return fail(400, { action: 'remove', error: 'That transaction does not exist.' });
 		}
 
+		// Its documents go with it: the rows by themselves, the files here.
+		const documents = await documentsOf(id);
+
 		// The opening balance is removed by setting it to 0 in its own form.
-		await db
+		const [removed] = await db
 			.delete(transactions)
-			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')));
+			.where(and(eq(transactions.id, id), ne(transactions.source, 'opening')))
+			.returning({ id: transactions.id });
+		if (removed) await removeDocuments(documents);
 
 		return { removed: true };
 	},
