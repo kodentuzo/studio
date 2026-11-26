@@ -38,8 +38,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Better Auth's own endpoints: sign in, sign up, sign out and the rest.
 	const isAuthApi = event.url.pathname.startsWith('/api/auth');
 
-	// Everything needs a signed-in user, except signing in itself.
-	if (!event.locals.user && !isAuthPage && !isAuthApi) {
+	// A project's media files are public: anyone with the address can open one.
+	const isProjectMedia = event.route.id === '/media/projects/[slug]/[name]';
+
+	// Everything else needs a signed-in user, except signing in itself.
+	if (!event.locals.user && !isAuthPage && !isAuthApi && !isProjectMedia) {
 		redirect(303, '/auth/sign-in');
 	}
 
