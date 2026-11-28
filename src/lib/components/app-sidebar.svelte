@@ -41,6 +41,8 @@
 		user,
 		organization,
 		team,
+		personalTeam,
+		inPersonal,
 		authUrl,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
@@ -49,6 +51,9 @@
 		organization: { slug: string; name: string };
 		// The team the Projects link follows: null when the person has none.
 		team: { slug: string; name: string } | null;
+		// The person's own team, and whether that is where they are.
+		personalTeam: { slug: string; name: string };
+		inPersonal: boolean;
 		// Where the account service is reached.
 		authUrl: string;
 	} = $props();
@@ -56,23 +61,38 @@
 	// The overview, then the places Studio keeps things.
 	// Projects belong to a team, so that link follows the team in the address, or else the
 	// oldest, and is left out for someone who has no team.
-	const navMain = $derived([
-		{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
-		...(team
-			? [{ title: "Projects", url: `/teams/${team.slug}/projects`, icon: AppWindowIcon }]
-			: []),
-		{ title: "Finances", url: "/finances", icon: WalletIcon },
-		{ title: "Settings", url: "/settings", icon: SettingsIcon },
-	]);
+	//
+	// In the person's own team there is only what is theirs: their projects. The overview,
+	// finances and settings are the organization's.
+	const navMain = $derived(
+		inPersonal
+			? [
+					{
+						title: "Projects",
+						url: `/teams/${personalTeam.slug}/projects`,
+						icon: AppWindowIcon,
+					},
+				]
+			: [
+					{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
+					...(team
+						? [{ title: "Projects", url: `/teams/${team.slug}/projects`, icon: AppWindowIcon }]
+						: []),
+					{ title: "Finances", url: "/finances", icon: WalletIcon },
+					{ title: "Settings", url: "/settings", icon: SettingsIcon },
+				]
+	);
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		<AccountSwitcher {user} {organization} {authUrl} />
+		<AccountSwitcher {user} {organization} {personalTeam} {inPersonal} />
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={navMain} />
-		<NavProjects projects={data.projects} />
+		{#if !inPersonal}
+			<NavProjects projects={data.projects} />
+		{/if}
 	</Sidebar.Content>
 	<Sidebar.Footer>
 		<NavUser {user} {authUrl} />

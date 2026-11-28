@@ -25,7 +25,7 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 
 	// Everyone in the organization has a personal team. This is where it is made, the first
 	// time they arrive.
-	await personalTeamOf(organization, locals.user);
+	const personalTeam = await personalTeamOf(organization, locals.user);
 
 	// The organization's teams the person sees, and the one the sidebar follows: the team in the address, or
 	// else the oldest.
@@ -40,6 +40,10 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		organization: { slug: organization.slug, name: organization.name },
 		teams,
 		team: teams.find((team) => team.slug === params.team) ?? teams[0] ?? null,
+		// The person's own team, and whether that is where they are: under its address the
+		// sidebar is about them, and everywhere else about the organization.
+		personalTeam: { slug: personalTeam.slug, name: personalTeam.name },
+		inPersonal: params.team === personalTeam.slug,
 		canManageTeams,
 		// Where the person's own pages are: the account service.
 		authUrl: AUTH_URL

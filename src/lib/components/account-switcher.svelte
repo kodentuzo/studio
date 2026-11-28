@@ -10,17 +10,20 @@
 
 	// The same switcher the account pages have: the person, and the organization.
 	// One flat list. The icon on each row says which kind it is.
-	// Studio is always inside its organization, so that row is the current one; the person's
-	// own pages are kept by the account service.
+	// Here it switches what Studio shows: the person's own team with their own projects, or
+	// what belongs to the organization. It never leaves Studio; the foot of the sidebar leads
+	// to the account pages.
 	let {
 		user,
 		organization,
-		authUrl,
+		personalTeam,
+		inPersonal,
 	}: {
 		user: { name: string };
 		organization: { slug: string; name: string };
-		// Where the account service is reached.
-		authUrl: string;
+		// The person's own team, and whether that is where they are.
+		personalTeam: { slug: string };
+		inPersonal: boolean;
 	} = $props();
 	const sidebar = useSidebar();
 </script>
@@ -38,11 +41,19 @@
 						<div
 							class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
 						>
-							<Building2Icon class="size-4" />
+							{#if inPersonal}
+								<UserRoundIcon class="size-4" />
+							{:else}
+								<Building2Icon class="size-4" />
+							{/if}
 						</div>
 						<div class="grid flex-1 text-start text-sm leading-tight">
-							<span class="truncate font-medium">{organization.name}</span>
-							<span class="truncate text-xs">@{organization.slug}</span>
+							<span class="truncate font-medium">
+								{inPersonal ? user.name : organization.name}
+							</span>
+							<span class="truncate text-xs">
+								@{inPersonal ? personalTeam.slug : organization.slug}
+							</span>
 						</div>
 						<ChevronsUpDownIcon class="ms-auto" />
 					</Sidebar.MenuButton>
@@ -54,18 +65,26 @@
 				side={sidebar.isMobile ? "bottom" : "right"}
 				sideOffset={4}
 			>
-				<DropdownMenu.Item onSelect={() => (window.location.href = authUrl)} class="gap-2 p-2">
+				<DropdownMenu.Item
+					onSelect={() => goto(`/teams/${personalTeam.slug}/projects`)}
+					class="gap-2 p-2"
+				>
 					<div class="flex size-6 items-center justify-center rounded-md border">
 						<UserRoundIcon class="size-3.5" />
 					</div>
 					<span class="truncate">{user.name}</span>
+					{#if inPersonal}
+						<CheckIcon class="ms-auto size-4" />
+					{/if}
 				</DropdownMenu.Item>
 				<DropdownMenu.Item onSelect={() => goto("/")} class="gap-2 p-2">
 					<div class="flex size-6 items-center justify-center rounded-md border">
 						<Building2Icon class="size-3.5" />
 					</div>
 					<span class="truncate">{organization.name}</span>
-					<CheckIcon class="ms-auto size-4" />
+					{#if !inPersonal}
+						<CheckIcon class="ms-auto size-4" />
+					{/if}
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
