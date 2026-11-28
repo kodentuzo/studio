@@ -34,14 +34,7 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
 
 export const actions: Actions = {
 	accept: async ({ params, request }) => {
-		let slug: string;
 		try {
-			// Read first for the organization's address, which accepting does not give back.
-			const invitation = await auth.api.getInvitation({
-				query: { id: params.id },
-				headers: request.headers
-			});
-			slug = invitation.organizationSlug;
 			await auth.api.acceptInvitation({
 				body: { invitationId: params.id },
 				headers: request.headers
@@ -50,7 +43,7 @@ export const actions: Actions = {
 			if (!(thrown instanceof APIError)) throw thrown;
 			return fail(400, { error: thrown.body?.message ?? 'The invitation could not be accepted.' });
 		}
-		redirect(303, `/organizations/${slug}`);
+		redirect(303, '/');
 	},
 
 	decline: async ({ params, request }) => {

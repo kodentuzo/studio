@@ -22,11 +22,6 @@
 
 	const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "long" });
 
-	// Deleting asks for the organization's slug, typed out.
-	let deleteOpen = $state(false);
-	let typedSlug = $state("");
-	let deleting = $state(false);
-
 	// Members: what each role is called, and the one being removed while that is confirmed.
 	const ROLES = [
 		{ value: "owner", label: "Owner" },
@@ -86,7 +81,7 @@
 <Card.Root class="max-w-2xl">
 	<Card.Header>
 		<Card.Title>General</Card.Title>
-		<Card.Description>How the organization is named and where it lives.</Card.Description>
+		<Card.Description>How the organization is named.</Card.Description>
 	</Card.Header>
 	<Card.Content>
 		<form
@@ -116,13 +111,6 @@
 						bind:value={name}
 						oninput={() => (saved = false)}
 					/>
-				</Field.Field>
-				<Field.Field>
-					<Field.Label for="slug">Slug</Field.Label>
-					<Input id="slug" type="text" value={data.settings.slug} readonly disabled />
-					<Field.Description>
-						The organization's address is /organizations/{data.settings.slug}. It cannot be changed.
-					</Field.Description>
 				</Field.Field>
 				<Field.Field>
 					<Field.Label>Created</Field.Label>
@@ -326,78 +314,3 @@
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
-
-<!-- Deleting is offered to owners only. -->
-{#if data.canManage}
-	<Card.Root class="max-w-2xl">
-		<Card.Header>
-			<Card.Title>Delete organization</Card.Title>
-			<Card.Description>
-				Deletes the organization with its projects, transactions, documents and files. This cannot be undone.
-			</Card.Description>
-		</Card.Header>
-		<Card.Content>
-			<Button
-				variant="destructive"
-				onclick={() => {
-					typedSlug = "";
-					deleteOpen = true;
-				}}
-			>
-				Delete organization
-			</Button>
-		</Card.Content>
-	</Card.Root>
-
-	<AlertDialog.Root bind:open={deleteOpen}>
-		<AlertDialog.Content>
-			<AlertDialog.Header>
-				<AlertDialog.Title>Delete {data.settings.name}?</AlertDialog.Title>
-				<AlertDialog.Description>
-					Its projects, transactions, documents and files are deleted with it. This cannot be undone.
-				</AlertDialog.Description>
-			</AlertDialog.Header>
-			<form
-				method="POST"
-				action="?/delete"
-				class="flex flex-col gap-6"
-				use:enhance={() => {
-					deleting = true;
-					return async ({ update }) => {
-						await update({ reset: false });
-						deleting = false;
-					};
-				}}
-			>
-				<Field.Field>
-					<Field.Label for="delete-slug">
-						Type the organization's slug, {data.settings.slug}, to confirm
-					</Field.Label>
-					<Input
-						id="delete-slug"
-						name="slug"
-						type="text"
-						autocapitalize="off"
-						autocomplete="off"
-						spellcheck={false}
-						placeholder={data.settings.slug}
-						bind:value={typedSlug}
-					/>
-					{#if form?.action === "delete" && form.error}
-						<Field.Error>{form.error}</Field.Error>
-					{/if}
-				</Field.Field>
-				<AlertDialog.Footer>
-					<AlertDialog.Cancel type="button">Cancel</AlertDialog.Cancel>
-					<AlertDialog.Action
-						type="submit"
-						variant="destructive"
-						disabled={deleting || typedSlug.trim() !== data.settings.slug}
-					>
-						Delete organization
-					</AlertDialog.Action>
-				</AlertDialog.Footer>
-			</form>
-		</AlertDialog.Content>
-	</AlertDialog.Root>
-{/if}

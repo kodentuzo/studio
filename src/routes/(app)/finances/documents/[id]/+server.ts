@@ -3,10 +3,11 @@ import { openDocument } from '#lib/server/documents.js';
 import { requireOrganization } from '#lib/server/organizations.js';
 import type { RequestHandler } from './$types';
 
-// Serves one of an organization's transaction documents, by its id. It sits behind the sign-in guard like every
-// other page: the file has no other address.
+// Serves one transaction document, by its id, to a member of the organization. The file has no
+// other address.
 export const GET: RequestHandler = async ({ params }) => {
-	const document = await openDocument(await requireOrganization(params.organization), params.id);
+	await requireOrganization();
+	const document = await openDocument(params.id);
 	if (!document) error(404, 'That document does not exist.');
 
 	return new Response(document.body, {

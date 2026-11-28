@@ -1,17 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { and, asc, eq, getTableColumns } from 'drizzle-orm';
+import { asc, eq, getTableColumns } from 'drizzle-orm';
 import { getRequestEvent } from '$app/server';
 import { organizationMembers } from './db/auth-tables.js';
 import { db } from './db/index.js';
 import { organizations } from './db/schema.js';
-import {
-	fileInfo,
-	openFile,
-	readFileBytes,
-	removeFile,
-	removeFolder,
-	saveUpload
-} from './media.js';
 
 export type Organization = typeof organizations.$inferSelect;
 
@@ -38,26 +30,22 @@ export async function findOrganizationOf(userId: string): Promise<Organization |
 }
 
 /**
- * The organization an address names: the "acme" in /organizations/acme/projects. Every page and
- * action under an organization starts here, and uses the organization's id in each query it
- * makes.
- *
- * It is only handed to someone who belongs to it. An organization the signed-in person is not a
- * member of is answered exactly like one that does not exist, so an address cannot be used to
- * find out which organizations there are. The person is read from the request being answered.
+ * The organization, for the person whose request is being answered, with the role they hold in
+ * it. Every action and endpoint that works on Studio's data starts here. Someone who does not
+ * belong to the organization is refused.
  */
-export async function requireOrganization(
-	slug: string
-): Promise<Organization & { role: string }> {
+export async function requireOrganization(): Promise<Organization & { role: string }> {
 	const { user } = getRequestEvent().locals;
 	const [organization] = user
 		? await db
 				.select({ ...getTableColumns(organizations), role: organizationMembers.role })
 				.from(organizations)
 				.innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
-				.where(and(eq(organizations.slug, slug), eq(organizationMembers.userId, user.id)))
+				.where(eq(organizationMembers.userId, user.id))
+				.orderBy(asc(organizations.createdAt))
+				.limit(1)
 		: [];
-	if (!organization) error(404, 'That organization does not exist.');
+	if (!organization) error(403, 'You are not a member of this Studio.');
 	return organization;
 }
 
@@ -76,33 +64,8 @@ export function managesMembers(organization: { role: string }): boolean {
 }
 
 /** The same lookup, for what only an owner may do. Anyone else is refused. */
-export async function requireOwnedOrganization(slug: string) {
-	const organization = await requireOrganization(slug);
+export async function requireOwnedOrganization() {
+	const organization = await requireOrganization();
 	if (!isOwner(organization)) error(403, 'Only an owner of the organization can do that.');
 	return organization;
-}
-
-/**
- * An organization's own part of the media folder: organizations/<slug>. Paths go in and come out
- * without that part, such as "projects/blog/icon.png", and that is also how they are stored in the
- * database.
- */
-export function organizationMedia(organization: { slug: string }) {
-	const root = `organizations/${organization.slug}`;
-	const inside = (path: string) => `${root}/${path}`;
-
-	return {
-		/** The path from the top of the media folder, for code that takes one. */
-		path: inside,
-		info: (path: string) => fileInfo(inside(path)),
-		open: (path: string) => openFile(inside(path)),
-		read: (path: string) => readFileBytes(inside(path)),
-		remove: (path: string) => removeFile(inside(path)),
-		/** Deletes every file the organization has. For when the organization itself is deleted. */
-		removeAll: () => removeFolder(root),
-		async save(file: File, dir: string) {
-			const stored = await saveUpload(file, inside(dir));
-			return 'error' in stored ? stored : { ...stored, path: stored.path.slice(root.length + 1) };
-		}
-	};
 }

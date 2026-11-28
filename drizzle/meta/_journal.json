@@ -92,6 +92,13 @@
       "when": 1795830370081,
       "tag": "0012_organization_plugin_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795833153931,
+      "tag": "0013_single_organization",
+      "breakpoints": true
     }
   ]
 }

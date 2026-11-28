@@ -3,7 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { projects } from '#lib/server/db/schema.js';
 import { isFileUsed } from '#lib/server/file-uses.js';
-import { requireOrganization, organizationMedia } from '#lib/server/organizations.js';
+import { media } from '#lib/server/media.js';
+import { requireOrganization } from '#lib/server/organizations.js';
 import { cropToSquare, imageSize } from '#lib/server/images.js';
 import {
 	checkIconSize,
@@ -17,17 +18,17 @@ import type { Actions, PageServerLoad } from './$types';
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export const load: PageServerLoad = async ({ params }) => {
-	const organization = await requireOrganization(params.organization);
+	await requireOrganization();
 	const [project] = await db
 		.select()
 		.from(projects)
-		.where(and(eq(projects.organizationId, organization.id), eq(projects.slug, params.slug)));
+		.where(eq(projects.slug, params.slug));
 	if (!project) error(404, 'That project does not exist.');
 
 	return { project };
 };
 
-/** The project's own folder in its organization's part of the media folder. Icon uploads live here. */
+/** The project's own folder in the media folder. Icon uploads live here. */
 function projectFolder(slug: string) {
 	return `projects/${slug}`;
 }
@@ -41,7 +42,7 @@ function isInProjectFolder(path: string, slug: string) {
 export const actions: Actions = {
 	// Stores an image picked as the icon, in the project's own folder.
 	uploadIcon: async ({ request, params }) => {
-		const media = organizationMedia(await requireOrganization(params.organization));
+		await requireOrganization();
 		const form = await request.formData();
 		const file = form.get('file');
 
@@ -58,8 +59,7 @@ export const actions: Actions = {
 	// Cuts an uploaded image down to a square and stores the result as a new PNG. The picked
 	// image is then removed, unless something uses it. Returns the new file's path.
 	cropIcon: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
-		const media = organizationMedia(organization);
+		await requireOrganization();
 		const form = await request.formData();
 		const path = String(form.get('path') ?? '');
 		const offset = Number(form.get('offset') ?? '0.5');
@@ -71,12 +71,12 @@ export const actions: Actions = {
 		}
 
 		// Too small to give a big enough square, or too large to open: say so before cutting.
-		const size = await imageSize(media.path(path));
+		const size = await imageSize(path);
 		if (!size) return refuse('The image could not be read.');
 		const problem = checkIconSource(size.width, size.height);
 		if (problem) return refuse(problem);
 
-		const bytes = await cropToSquare(media.path(path), offset);
+		const bytes = await cropToSquare(path, offset);
 		if (!bytes) return refuse('The image could not be read.');
 
 		const name = path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]*$/, '');
@@ -86,19 +86,19 @@ export const actions: Actions = {
 		);
 		if ('error' in stored) return refuse(stored.error);
 
-		if (!(await isFileUsed(organization.id, path))) await media.remove(path);
+		if (!(await isFileUsed(path))) await media.remove(path);
 
 		return { cropped: stored.path };
 	},
 
 	// Removes an image that was uploaded for cropping and then not used.
 	discardUpload: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+		await requireOrganization();
 		const form = await request.formData();
 		const path = String(form.get('path') ?? '');
 
-		if (isInProjectFolder(path, params.slug) && !(await isFileUsed(organization.id, path))) {
-			await organizationMedia(organization).remove(path);
+		if (isInProjectFolder(path, params.slug) && !(await isFileUsed(path))) {
+			await media.remove(path);
 		}
 
 		return { discarded: true };
@@ -106,8 +106,7 @@ export const actions: Actions = {
 
 	// Saves the branding fields. An emptied optional field is stored as "not set".
 	save: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
-		const media = organizationMedia(organization);
+		await requireOrganization();
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const shortName = String(form.get('shortName') ?? '').trim();
@@ -142,7 +141,7 @@ export const actions: Actions = {
 				return refuse('The icon has to be an image: PNG, JPEG or WebP.');
 			}
 
-			const size = await imageSize(media.path(iconPath));
+			const size = await imageSize(iconPath);
 			if (!size) return refuse('The icon could not be read as an image.');
 
 			const problem = checkIconSize(size.width, size.height);
@@ -160,7 +159,7 @@ export const actions: Actions = {
 				iconPath: iconPath || null,
 				updatedAt: new Date()
 			})
-			.where(and(eq(projects.organizationId, organization.id), eq(projects.slug, params.slug)))
+			.where(eq(projects.slug, params.slug))
 			.returning({ id: projects.id });
 
 		if (!saved) error(404, 'That project does not exist.');
@@ -170,7 +169,7 @@ export const actions: Actions = {
 
 	// Saves the named links. A link left empty is dropped, so `urls` only holds what is set.
 	saveLinks: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+		await requireOrganization();
 		const form = await request.formData();
 		const refuse = (message: string) => fail(400, { action: 'saveLinks', error: message });
 
@@ -195,7 +194,7 @@ export const actions: Actions = {
 		const [saved] = await db
 			.update(projects)
 			.set({ urls, updatedAt: new Date() })
-			.where(and(eq(projects.organizationId, organization.id), eq(projects.slug, params.slug)))
+			.where(eq(projects.slug, params.slug))
 			.returning({ id: projects.id });
 
 		if (!saved) error(404, 'That project does not exist.');

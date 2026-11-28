@@ -40,7 +40,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// A project's media files are public: anyone with the address can open one.
 	const isProjectMedia =
-		event.route.id === '/(app)/organizations/[organization]/media/projects/[slug]/[name]';
+		event.route.id === '/(app)/media/projects/[slug]/[name]';
 
 	// Everything else needs a signed-in user, except signing in itself.
 	// A page that was asked for is remembered, so that signing in leads back to it: that is how

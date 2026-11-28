@@ -15,18 +15,19 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 
-// A group of people and everything they keep in Studio. Each organization has its own address,
-// /organizations/<slug>, and what belongs to an organization points at its id.
+// The organization this Studio belongs to: the people who use this installation. One Studio is
+// one organization, so this table holds a single row, made when Studio is set up. Nothing else
+// points at it, because everything in this database belongs to it.
 //
 // The sign-in library reads and writes this table too: it is the "organization" of its
-// organization plugin, set up in src/lib/server/organization-plugin.ts. Who belongs to an
+// organization plugin, set up in src/lib/server/organization-plugin.ts. Who belongs to the
 // organization, and who has been invited, are tables that library looks after itself.
 export const organizations = pgTable(
 	'organizations',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The short name in the organization's address. Other tables point at the id, never at
-		// this.
+		// A short name the sign-in library asks for, worked out from the name. Studio shows it
+		// nowhere.
 		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -39,7 +40,10 @@ export const organizations = pgTable(
 			'organizations_slug_shape',
 			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`
 		),
-		check('organizations_name_length', sql`char_length(${table.name}) between 1 and 45`)
+		check('organizations_name_length', sql`char_length(${table.name}) between 1 and 45`),
+		// At most one row: every row has the same value here, and no two rows may share it. Two
+		// people setting Studio up at the same instant cannot both succeed.
+		uniqueIndex('organizations_only_one').on(sql`(true)`)
 	]
 );
 
@@ -48,10 +52,6 @@ export const transactions = pgTable(
 	'transactions',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The organization whose money it is. Deleting an organization deletes its transactions.
-		organizationId: uuid('organization_id')
-			.notNull()
-			.references(() => organizations.id, { onDelete: 'cascade' }),
 		date: date('date').notNull(),
 		amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
 		currency: char('currency', { length: 3 }).notNull().default('EUR'),
@@ -66,25 +66,21 @@ export const transactions = pgTable(
 	(table) => [
 		check('transactions_amount_not_zero', sql`${table.amount} <> 0`),
 		check('transactions_status_known', sql`${table.status} in ('planned', 'paid')`),
-		// Each organization has at most one opening balance.
+		// There is at most one opening balance.
 		uniqueIndex('transactions_one_opening')
-			.on(table.organizationId, table.source)
+			.on(table.source)
 			.where(sql`${table.source} = 'opening'`)
 	]
 );
 
 // The invoices, receipts and other papers that belong to a transaction. Each one is a file in
-// the "finances" folder of its organization's part of the media folder, named after its id. Nobody
+// the "finances" folder of the media folder, named after its id. Nobody
 // browses that folder, so the name the file was uploaded under is kept here.
 export const transactionDocuments = pgTable(
 	'transaction_documents',
 	{
 		// Also the file's name on disk, with an ending for its type: <id>.pdf.
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The organization it belongs to, known from the moment it is uploaded.
-		organizationId: uuid('organization_id')
-			.notNull()
-			.references(() => organizations.id, { onDelete: 'cascade' }),
 		// Empty between the upload and the save of the transaction it was uploaded for. One left
 		// that way was never saved, and is cleared out after a day.
 		transactionId: uuid('transaction_id').references(() => transactions.id, {
@@ -105,20 +101,15 @@ export const projects = pgTable(
 	'projects',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The organization it belongs to. Deleting an organization deletes its projects.
-		organizationId: uuid('organization_id')
-			.notNull()
-			.references(() => organizations.id, { onDelete: 'cascade' }),
-		// The short name in the project's address, after its organization's. No two projects of one
-		// organization share it.
-		slug: text('slug').notNull(),
+		// The short name in the project's address. No two projects share it.
+		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
 		// The label under the home-screen icon. When empty, the name is used.
 		shortName: text('short_name'),
 		description: text('description'),
 		themeColor: text('theme_color'),
 		backgroundColor: text('background_color'),
-		// The icon's path inside the organization's part of the media folder.
+		// The icon's path inside the media folder.
 		iconPath: text('icon_path'),
 		// Named links, read if present: app, privacy, terms. The allowed names and the shape of
 		// each link are checked in code; here only that it is an object.
@@ -127,7 +118,6 @@ export const projects = pgTable(
 		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [
-		unique('projects_organization_slug_unique').on(table.organizationId, table.slug),
 		check(
 			'projects_slug_shape',
 			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`

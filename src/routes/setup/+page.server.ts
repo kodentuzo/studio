@@ -32,8 +32,10 @@ export const actions: Actions = {
 		try {
 			await auth.api.createOrganization({ body: { name, slug }, headers: request.headers });
 		} catch (thrown) {
-			if (!(thrown instanceof APIError)) throw thrown;
+			// Also the case when two people set Studio up at the same instant: the database lets
+			// only one organization exist, so the second one fails and is told why.
 			if (await findOrganization()) return refuse(409, 'This Studio has already been set up.');
+			if (!(thrown instanceof APIError)) throw thrown;
 			return refuse(400, thrown.body?.message ?? 'The organization could not be created.');
 		}
 

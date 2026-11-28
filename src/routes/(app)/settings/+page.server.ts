@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.js';
@@ -9,7 +9,6 @@ import { nameProblem } from '#lib/server/organization-plugin.js';
 import {
 	isOwner,
 	managesMembers,
-	organizationMedia,
 	requireOrganization,
 	requireOwnedOrganization
 } from '#lib/server/organizations.js';
@@ -17,9 +16,9 @@ import type { Actions, PageServerLoad } from './$types';
 
 const ROLES = ['owner', 'admin', 'member'];
 
-export const load: PageServerLoad = async ({ params, request, locals }) => {
-	const organization = await requireOrganization(params.organization);
-	const { name, slug, createdAt } = organization;
+export const load: PageServerLoad = async ({ request, locals }) => {
+	const organization = await requireOrganization();
+	const { name, createdAt } = organization;
 
 	// Asked of the sign-in library, which keeps the list. Oldest first, so the list stays put.
 	const listed = await auth.api.listMembers({
@@ -46,7 +45,7 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
 				role: invitation.role,
 				expires: invitation.expiresAt
 			})),
-		settings: { name, slug, createdAt },
+		settings: { name, createdAt },
 		// Every member can read the settings. Only an owner can change them.
 		canManage: isOwner(organization),
 		// Owners and admins look after who belongs.
@@ -72,7 +71,7 @@ async function memberIsOwner(organizationId: string, memberId: string) {
 		.select({ role: organizationMembers.role })
 		.from(organizationMembers)
 		.where(
-			and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.id, memberId))
+			eq(organizationMembers.id, memberId)
 		);
 	return member ? isOwner(member) : false;
 }
@@ -85,10 +84,9 @@ function refusal(thrown: unknown, action: string) {
 }
 
 export const actions: Actions = {
-	// Saves the General section, for an owner. Only the name can change: the slug is part of
-	// every address and of the organization's folder on disk.
-	general: async ({ request, params }) => {
-		const organization = await requireOwnedOrganization(params.organization);
+	// Saves the General section, for an owner.
+	general: async ({ request }) => {
+		const organization = await requireOwnedOrganization();
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 
@@ -100,33 +98,10 @@ export const actions: Actions = {
 		return { action: 'general', saved: true };
 	},
 
-	// Deletes the organization and everything it has, for an owner. The slug has to be typed, so this cannot
-	// happen by a slip of the hand.
-	delete: async ({ request, params }) => {
-		const organization = await requireOwnedOrganization(params.organization);
-		const form = await request.formData();
-		const typed = String(form.get('slug') ?? '').trim();
-
-		if (typed !== organization.slug) {
-			return fail(400, {
-				action: 'delete',
-				error: 'That is not the slug of this organization. Nothing was deleted.'
-			});
-		}
-
-		// The rows first: deleting the organization deletes its projects, transactions and
-		// documents with it. Then the files, which the database knows nothing about. In this order
-		// a failure can leave files nobody points at, never rows pointing at files that are gone.
-		await db.delete(organizations).where(eq(organizations.id, organization.id));
-		await organizationMedia(organization).removeAll();
-
-		redirect(303, '/organizations');
-	},
-
 	// Changes what a member may do. The sign-in library decides who may change whom: an admin
 	// cannot touch an owner, and an organization always keeps at least one owner.
-	memberRole: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+	memberRole: async ({ request }) => {
+		const organization = await requireOrganization();
 		const form = await request.formData();
 		const memberId = String(form.get('memberId') ?? '');
 		const role = String(form.get('role') ?? '');
@@ -151,8 +126,8 @@ export const actions: Actions = {
 	},
 
 	// Takes a member out of the organization. Their account stays, and so does what they made.
-	removeMember: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+	removeMember: async ({ request }) => {
+		const organization = await requireOrganization();
 		const form = await request.formData();
 		const memberId = String(form.get('memberId') ?? '');
 		if (!isOwner(organization) && (await memberIsOwner(organization.id, memberId))) {
@@ -172,8 +147,8 @@ export const actions: Actions = {
 
 	// Invites someone by email. Nothing is sent: the page shows a link to pass on, and only the
 	// account with that email can use it.
-	invite: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+	invite: async ({ request }) => {
+		const organization = await requireOrganization();
 		const form = await request.formData();
 		const email = String(form.get('email') ?? '').trim().toLowerCase();
 		const role = String(form.get('role') ?? '');
@@ -200,8 +175,8 @@ export const actions: Actions = {
 	},
 
 	// Withdraws an invitation, so its link stops working.
-	cancelInvitation: async ({ request, params }) => {
-		await requireOrganization(params.organization);
+	cancelInvitation: async ({ request }) => {
+		await requireOrganization();
 		const form = await request.formData();
 		const invitationId = String(form.get('invitationId') ?? '');
 

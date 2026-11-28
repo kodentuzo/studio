@@ -5,19 +5,18 @@ import { projects } from '#lib/server/db/schema.js';
 import { requireOrganization } from '#lib/server/organizations.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
-	const organization = await requireOrganization(params.organization);
+export const load: PageServerLoad = async () => {
+	await requireOrganization();
 	const rows = await db
 		.select()
 		.from(projects)
-		.where(eq(projects.organizationId, organization.id))
 		.orderBy(asc(projects.name));
 	return { projects: rows };
 };
 
 export const actions: Actions = {
-	create: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+	create: async ({ request }) => {
+		await requireOrganization();
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const slug = String(form.get('slug') ?? '').trim();
@@ -39,18 +38,18 @@ export const actions: Actions = {
 		const [taken] = await db
 			.select({ id: projects.id })
 			.from(projects)
-			.where(and(eq(projects.organizationId, organization.id), eq(projects.slug, slug)))
+			.where(eq(projects.slug, slug))
 			.limit(1);
 		if (taken) {
 			return fail(409, { action: 'create', error: `The slug "${slug}" is already used.` });
 		}
 
 		// Two people creating the same slug at the same instant: the second insert is skipped by
-		// the rule that an organization's slugs are unique and returns nothing.
+		// the rule that slugs are unique and returns nothing.
 		const [created] = await db
 			.insert(projects)
-			.values({ organizationId: organization.id, name, slug })
-			.onConflictDoNothing({ target: [projects.organizationId, projects.slug] })
+			.values({ name, slug })
+			.onConflictDoNothing({ target: projects.slug })
 			.returning({ slug: projects.slug });
 		if (!created) {
 			return fail(409, { action: 'create', error: `The slug "${slug}" is already used.` });

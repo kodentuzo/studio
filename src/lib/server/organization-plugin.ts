@@ -6,10 +6,10 @@ import { organization } from 'better-auth/plugins/organization';
 // can use the very same setup; nothing here depends on Studio running.
 //
 // One Studio is one organization: the people who use this installation. The plugin works on
-// Studio's own "organizations" table, which therefore holds a single row, and names its tables and columns the
-// way Studio's are named. Two things it could do are closed, because an organization's slug is
-// also the name of its folder on disk: deleting one through the plugin, and changing a slug.
-// Studio's own pages do the first, and nothing does the second.
+// Studio's own "organizations" table, which therefore holds a single row, and names its tables
+// and columns the way Studio's are named. Three things it could do are closed: making a second
+// organization, deleting the one there is, and changing its slug. The organization is the
+// installation itself, so it goes when the installation does.
 //
 // One rule about roles holds for Studio's pages and for the plugin's own endpoints alike: what
 // touches an owner is for owners. An admin can look after members and other admins, and nothing
@@ -63,7 +63,7 @@ export function organizationPlugin(database: Database) {
 			const existing = await database.query('select 1 from organizations limit 1');
 			return existing.rows.length === 0;
 		},
-		// Studio deletes an organization itself, so that its files go with it.
+		// The organization is the installation: it is not deleted from inside it.
 		disableOrganizationDeletion: true,
 		schema: {
 			organization: {

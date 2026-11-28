@@ -42,47 +42,41 @@
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
-		// The organization this Studio belongs to, or null for someone who is not part of it.
-		organization: { slug: string; name: string } | null;
+		// The organization this Studio belongs to.
+		organization: { name: string };
 	} = $props();
 
-	// The organization's overview, then the places it keeps things.
-	const navMain = $derived.by(() => {
-		if (!organization) return [];
-		const base = `/organizations/${organization.slug}`;
-		return [
-			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
-			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
-			{ title: "Finances", url: `${base}/finances`, icon: WalletIcon },
-			{ title: "Settings", url: `${base}/settings`, icon: SettingsIcon },
-		];
-	});
+	// The overview, then the places Studio keeps things.
+	const navMain = [
+		{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
+		{ title: "Projects", url: "/projects", icon: AppWindowIcon },
+		{ title: "Finances", url: "/finances", icon: WalletIcon },
+		{ title: "Settings", url: "/settings", icon: SettingsIcon },
+	];
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		{#if organization}
-			<!-- One Studio is one organization, so there is nothing to switch between. -->
-			<Sidebar.Menu>
-				<Sidebar.MenuItem>
-					<Sidebar.MenuButton size="lg">
-						{#snippet child({ props })}
-							<a href="/organizations/{organization.slug}" {...props}>
-								<div
-									class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-medium text-sidebar-primary-foreground"
-								>
-									{organization.name.trim()[0]?.toUpperCase() ?? "?"}
-								</div>
-								<div class="grid flex-1 text-start text-sm leading-tight">
-									<span class="truncate font-medium">{organization.name}</span>
-									<span class="truncate text-xs">Studio</span>
-								</div>
-							</a>
-						{/snippet}
-					</Sidebar.MenuButton>
-				</Sidebar.MenuItem>
-			</Sidebar.Menu>
-		{/if}
+		<!-- One Studio is one organization, so there is nothing to switch between. -->
+		<Sidebar.Menu>
+			<Sidebar.MenuItem>
+				<Sidebar.MenuButton size="lg">
+					{#snippet child({ props })}
+						<a href="/" {...props}>
+							<div
+								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+							>
+								{organization.name.trim()[0]?.toUpperCase() ?? "?"}
+							</div>
+							<div class="grid flex-1 text-start text-sm leading-tight">
+								<span class="truncate font-medium">{organization.name}</span>
+								<span class="truncate text-xs">Studio</span>
+							</div>
+						</a>
+					{/snippet}
+				</Sidebar.MenuButton>
+			</Sidebar.MenuItem>
+		</Sidebar.Menu>
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={navMain} />

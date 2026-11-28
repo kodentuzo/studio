@@ -227,3 +227,15 @@ export async function removeFolder(path: string): Promise<boolean> {
 	await rm(full, { recursive: true });
 	return true;
 }
+
+/**
+ * The media folder as the rest of Studio uses it. Paths are from the top of the folder, such as
+ * "projects/blog/icon.png", and that is also how they are stored in the database.
+ */
+export const media = {
+	info: fileInfo,
+	open: openFile,
+	read: readFileBytes,
+	remove: removeFile,
+	save: saveUpload
+};

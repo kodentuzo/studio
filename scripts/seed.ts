@@ -10,7 +10,6 @@
 
 import { betterAuth } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
-import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
@@ -51,18 +50,16 @@ if (known.rowCount === 0) {
 const account = await pool.query('select id from "user" where email = $1', [ACCOUNT.email]);
 
 // The organization is made through the sign-in library too, which makes the account its owner.
-const [seeded] = await db.select().from(organizations).where(eq(organizations.slug, 'acme'));
+const [seeded] = await db.select().from(organizations).limit(1);
 if (!seeded) {
 	await auth.api.createOrganization({
 		body: { name: 'Acme', slug: 'acme', userId: account.rows[0].id }
 	});
 }
-const [organization] = await db.select().from(organizations).where(eq(organizations.slug, 'acme'));
 
 await db
 	.insert(projects)
 	.values({
-		organizationId: organization.id,
 		slug: 'sokoban',
 		name: 'Sokoban',
 		shortName: 'Sokoban',
@@ -72,13 +69,9 @@ await db
 	})
 	.onConflictDoNothing();
 
-// Transactions have nothing to tell two runs apart by, so they are only added to an organization
-// that has none.
-const [existing] = await db
-	.select({ id: transactions.id })
-	.from(transactions)
-	.where(eq(transactions.organizationId, organization.id))
-	.limit(1);
+// Transactions have nothing to tell two runs apart by, so they are only added when there are
+// none.
+const [existing] = await db.select({ id: transactions.id }).from(transactions).limit(1);
 
 if (!existing) {
 	// Dated in the current month, so the overview chart has something in it.
@@ -87,15 +80,13 @@ if (!existing) {
 		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), number)).toISOString().slice(0, 10);
 
 	await db.insert(transactions).values([
-		{ organizationId: organization.id, date: day(1), amount: '500.00', counterparty: 'Opening balance', source: 'opening' },
-		{ organizationId: organization.id, date: day(2), amount: '-7.49', counterparty: 'Hetzner', note: 'Server' },
-		{ organizationId: organization.id, date: day(3), amount: '-12.00', counterparty: 'Namecheap', note: 'Domain renewal' },
-		{ organizationId: organization.id, date: day(5), amount: '250.00', counterparty: 'Globex', note: 'Invoice 2026-001' },
-		{ organizationId: organization.id, date: day(20), amount: '-20.00', counterparty: 'Anthropic', status: 'planned' }
+		{ date: day(1), amount: '500.00', counterparty: 'Opening balance', source: 'opening' },
+		{ date: day(2), amount: '-7.49', counterparty: 'Hetzner', note: 'Server' },
+		{ date: day(3), amount: '-12.00', counterparty: 'Namecheap', note: 'Domain renewal' },
+		{ date: day(5), amount: '250.00', counterparty: 'Globex', note: 'Invoice 2026-001' },
+		{ date: day(20), amount: '-20.00', counterparty: 'Anthropic', status: 'planned' }
 	]);
 }
 
 await pool.end();
-console.log(
-	`Seeded the organization Acme and the account ${ACCOUNT.email}: open /organizations/acme`
-);
+console.log(`Seeded the organization Acme and the account ${ACCOUNT.email}.`);

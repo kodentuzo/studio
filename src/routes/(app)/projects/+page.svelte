@@ -126,12 +126,12 @@
 				<Table.Row>
 					<Table.Cell class="font-medium">
 						<a
-							href="/organizations/{data.organization.slug}/projects/{project.slug}"
+							href="/projects/{project.slug}"
 							class="flex items-center gap-3 hover:underline"
 						>
 							{#if project.iconPath}
 								<img
-									src={mediaUrl(data.organization.slug, project.iconPath)}
+									src={mediaUrl(project.iconPath)}
 									alt=""
 									class="size-8 rounded-lg border object-cover"
 								/>
