@@ -1,22 +1,54 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { APIError } from 'better-auth/api';
 import { eq } from 'drizzle-orm';
+import { auth } from '#lib/server/auth.js';
 import { db } from '#lib/server/db/index.js';
 import { organizations } from '#lib/server/db/schema.js';
 import { nameProblem } from '#lib/server/organization-plugin.js';
 import {
 	isOwner,
+	managesMembers,
 	organizationMedia,
 	requireOrganization,
 	requireOwnedOrganization
 } from '#lib/server/organizations.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+const ROLES = ['owner', 'admin', 'member'];
+
+export const load: PageServerLoad = async ({ params, request, locals }) => {
 	const organization = await requireOrganization(params.organization);
 	const { name, slug, createdAt } = organization;
-	// Every member can read the settings. Only an owner can change them.
-	return { settings: { name, slug, createdAt }, canManage: isOwner(organization) };
+
+	// Asked of the sign-in library, which keeps the list. Oldest first, so the list stays put.
+	const listed = await auth.api.listMembers({
+		query: { organizationId: organization.id, sortBy: 'createdAt', sortDirection: 'asc' },
+		headers: request.headers
+	});
+
+	return {
+		settings: { name, slug, createdAt },
+		// Every member can read the settings. Only an owner can change them.
+		canManage: isOwner(organization),
+		// Owners and admins look after who belongs.
+		canManageMembers: managesMembers(organization),
+		members: listed.members.map((member) => ({
+			id: member.id,
+			name: member.user.name,
+			email: member.user.email,
+			role: member.role,
+			joined: member.createdAt,
+			isYou: member.userId === locals.user?.id
+		}))
+	};
 };
+
+/** The sign-in library's refusal as a sentence for the page. Anything else is a real failure. */
+function refusal(thrown: unknown, action: string) {
+	if (!(thrown instanceof APIError)) throw thrown;
+	const error = thrown.body?.message ?? 'That could not be done.';
+	return fail(thrown.statusCode === 403 ? 403 : 400, { action, error });
+}
 
 export const actions: Actions = {
 	// Saves the General section, for an owner. Only the name can change: the slug is part of
@@ -55,5 +87,42 @@ export const actions: Actions = {
 		await organizationMedia(organization).removeAll();
 
 		redirect(303, '/organizations');
+	},
+
+	// Changes what a member may do. The sign-in library decides who may change whom: an admin
+	// cannot touch an owner, and an organization always keeps at least one owner.
+	memberRole: async ({ request, params }) => {
+		const organization = await requireOrganization(params.organization);
+		const form = await request.formData();
+		const memberId = String(form.get('memberId') ?? '');
+		const role = String(form.get('role') ?? '');
+		if (!ROLES.includes(role)) return fail(400, { action: 'members', error: 'Unknown role.' });
+
+		try {
+			await auth.api.updateMemberRole({
+				body: { memberId, role, organizationId: organization.id },
+				headers: request.headers
+			});
+		} catch (thrown) {
+			return refusal(thrown, 'members');
+		}
+		return { action: 'members', saved: true };
+	},
+
+	// Takes a member out of the organization. Their account stays, and so does what they made.
+	removeMember: async ({ request, params }) => {
+		const organization = await requireOrganization(params.organization);
+		const form = await request.formData();
+		const memberId = String(form.get('memberId') ?? '');
+
+		try {
+			await auth.api.removeMember({
+				body: { memberIdOrEmail: memberId, organizationId: organization.id },
+				headers: request.headers
+			});
+		} catch (thrown) {
+			return refusal(thrown, 'members');
+		}
+		return { action: 'members', saved: true };
 	}
 };

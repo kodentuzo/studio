@@ -57,6 +57,12 @@ export function isOwner(organization: { role: string }): boolean {
 	return organization.role.split(',').includes('owner');
 }
 
+/** True for someone who looks after who belongs to the organization: an owner or an admin. */
+export function managesMembers(organization: { role: string }): boolean {
+	const roles = organization.role.split(',');
+	return roles.includes('owner') || roles.includes('admin');
+}
+
 /** The same lookup, for what only an owner may do. Anyone else is refused. */
 export async function requireOwnedOrganization(slug: string) {
 	const organization = await requireOrganization(slug);
