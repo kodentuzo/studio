@@ -21,3 +21,10 @@ export const teamMembers = pgTable('team_members', {
 	userId: uuid('user_id').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true })
 });
+
+/** The accounts people sign in with. Only what Studio shows of one is described. */
+export const users = pgTable('user', {
+	id: uuid('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull()
+});

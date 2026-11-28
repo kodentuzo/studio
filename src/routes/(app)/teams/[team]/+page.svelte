@@ -14,6 +14,7 @@
 	{dateFormat.format(data.current.createdAt)}
 </p>
 
-<div>
+<div class="flex gap-2">
 	<Button href="/teams/{data.current.slug}/projects" variant="outline">Projects</Button>
+	<Button href="/teams/{data.current.slug}/settings" variant="outline">Settings</Button>
 </div>
