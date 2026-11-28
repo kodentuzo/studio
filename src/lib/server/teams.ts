@@ -91,6 +91,16 @@ export async function requireTeam(slug: string): Promise<Team> {
 }
 
 /**
+ * The personal team an address names, for what only a personal team has, such as finances.
+ * One of the organization's own teams is answered like one that does not exist.
+ */
+export async function requirePersonalTeam(slug: string): Promise<Team> {
+	const team = await requireTeam(slug);
+	if (!team.personalUserId) error(404, 'That team does not exist.');
+	return team;
+}
+
+/**
  * A team's own part of the media folder: teams/<slug>. Paths go in and come out without that
  * part, such as "projects/blog/icon.png", and that is also how they are stored in the database.
  */

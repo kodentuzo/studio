@@ -3,9 +3,12 @@ import { callAction } from './media.js';
 /** A transaction document as the Finances page knows it. */
 export type TransactionDocument = { id: string; name: string; contentType: string };
 
-/** The address a transaction document is opened at. */
-export function documentUrl(id: string) {
-	return `/finances/documents/${id}`;
+/**
+ * The address a transaction document is opened at: under the Finances page it belongs to,
+ * such as /finances or /teams/ada/finances.
+ */
+export function documentUrl(finances: string, id: string) {
+	return `${finances.replace(/\/$/, '')}/documents/${id}`;
 }
 
 /**

@@ -62,8 +62,7 @@
 	// Projects belong to a team, so that link follows the team in the address, or else the
 	// oldest, and is left out for someone who has no team.
 	//
-	// In the person's own team there is only what is theirs: their projects. The overview,
-	// finances and settings are the organization's.
+	// In the person's own team there is what is theirs: their projects and their finances.
 	const navMain = $derived(
 		inPersonal
 			? [
@@ -71,6 +70,11 @@
 						title: "Projects",
 						url: `/teams/${personalTeam.slug}/projects`,
 						icon: AppWindowIcon,
+					},
+					{
+						title: "Finances",
+						url: `/teams/${personalTeam.slug}/finances`,
+						icon: WalletIcon,
 					},
 				]
 			: [
