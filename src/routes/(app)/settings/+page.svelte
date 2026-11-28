@@ -297,7 +297,8 @@
 			<AlertDialog.Title>Remove {removing?.name}?</AlertDialog.Title>
 			<AlertDialog.Description>
 				They can no longer open {data.settings.name}. Their account stays, and so does everything
-				they added.
+				they added to its teams. Their personal team is deleted for good, with its projects and
+				files.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

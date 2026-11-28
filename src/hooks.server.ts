@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { auth } from '#lib/server/auth.js';
 import { db } from '#lib/server/db/index.js';
 import { ensureStorage } from '#lib/server/media.js';
+import { removeLeftPersonalTeams } from '#lib/server/personal-teams.js';
 import { ensureVault } from '#lib/server/vault.js';
 
 // Runs once when the server starts: creates or updates the tables.
@@ -23,6 +24,9 @@ export const init: ServerInit = async () => {
 	// The sign-in tables, which Better Auth looks after itself.
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
+
+	// Personal teams of people who are no longer in the organization, in case one was missed.
+	await removeLeftPersonalTeams();
 };
 
 // Every request passes through here before any page or endpoint runs.
