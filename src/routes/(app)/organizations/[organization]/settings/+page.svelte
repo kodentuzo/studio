@@ -33,6 +33,11 @@
 		{ value: "admin", label: "Admin" },
 		{ value: "member", label: "Member" },
 	];
+	// What touches an owner is for owners: an admin is offered neither the role nor the controls.
+	const isOwnerRole = (role: string) => role.split(",").includes("owner");
+	const offeredRoles = $derived(
+		data.canManage ? ROLES : ROLES.filter((role) => role.value !== "owner"),
+	);
 	type Member = (typeof data.members)[number];
 	let removing = $state<Member | null>(null);
 	let membersBusy = $state(false);
@@ -177,8 +182,8 @@
 							{dateFormat.format(member.joined)}
 						</Table.Cell>
 						<Table.Cell class="text-end">
-							<!-- Nobody changes or removes themselves here. -->
-							{#if data.canManageMembers && !member.isYou}
+							<!-- Nobody changes or removes themselves here, and only an owner touches an owner. -->
+							{#if data.canManageMembers && !member.isYou && (data.canManage || !isOwnerRole(member.role))}
 								<DropdownMenu.Root>
 									<DropdownMenu.Trigger>
 										{#snippet child({ props })}
@@ -194,7 +199,7 @@
 											value={member.role}
 											onValueChange={(role) => memberAction("memberRole", { memberId: member.id, role })}
 										>
-											{#each ROLES as role (role.value)}
+											{#each offeredRoles as role (role.value)}
 												<DropdownMenu.RadioItem value={role.value}>{role.label}</DropdownMenu.RadioItem>
 											{/each}
 										</DropdownMenu.RadioGroup>
@@ -236,15 +241,17 @@
 										<Button variant="outline" size="sm" onclick={() => copyLink(invitation.id)}>
 											{copied === invitation.id ? "Copied" : "Copy link"}
 										</Button>
-										<Button
-											variant="ghost"
-											size="sm"
-											disabled={membersBusy}
-											onclick={() =>
-												memberAction("cancelInvitation", { invitationId: invitation.id })}
-										>
-											Cancel
-										</Button>
+										{#if data.canManage || !isOwnerRole(invitation.role)}
+											<Button
+												variant="ghost"
+												size="sm"
+												disabled={membersBusy}
+												onclick={() =>
+													memberAction("cancelInvitation", { invitationId: invitation.id })}
+											>
+												Cancel
+											</Button>
+										{/if}
 									</Table.Cell>
 								</Table.Row>
 							{/each}
@@ -282,7 +289,7 @@
 						aria-label="Role"
 						class="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					>
-						{#each ROLES.toReversed() as role (role.value)}
+						{#each offeredRoles.toReversed() as role (role.value)}
 							<option value={role.value}>{role.label}</option>
 						{/each}
 					</select>

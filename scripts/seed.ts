@@ -38,7 +38,7 @@ const auth = betterAuth({
 	database: pool,
 	emailAndPassword: { enabled: true },
 	advanced: { database: { generateId: 'uuid' } },
-	plugins: [organizationPlugin()]
+	plugins: [organizationPlugin(pool)]
 });
 const { runMigrations } = await getMigrations(auth.options);
 await runMigrations();

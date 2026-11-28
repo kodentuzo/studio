@@ -9,6 +9,13 @@ import { organization } from 'better-auth/plugins/organization';
 // way Studio's are named. Two things it could do are closed, because an organization's slug is
 // also the name of its folder on disk: deleting one through the plugin, and changing a slug.
 // Studio's own pages do the first, and nothing does the second.
+//
+// One rule about roles holds for Studio's pages and for the plugin's own endpoints alike: what
+// touches an owner is for owners. An admin can look after members and other admins, and nothing
+// more. Only an owner can make someone an owner, change or remove an owner, invite someone as an
+// owner, withdraw such an invitation, or change the organization itself. The plugin refuses the
+// first three by itself; the rest is refused in the hooks below. Studio's settings page checks
+// all of it once more before it asks the plugin.
 
 /** Addresses under /organizations that are pages of their own, so no organization can be one. */
 const RESERVED_SLUGS = ['new'];
@@ -35,7 +42,25 @@ function refuse(message: string): never {
 	throw new APIError('BAD_REQUEST', { message });
 }
 
-export function organizationPlugin() {
+const hasOwner = (role: string | null | undefined) => (role ?? '').split(',').includes('owner');
+
+/** The database, as far as this file needs it: Studio's pool of connections. */
+type Database = {
+	query(text: string, values: unknown[]): Promise<{ rows: { role: string }[] }>;
+};
+
+export function organizationPlugin(database: Database) {
+	// Refuses unless the person is an owner of the organization.
+	async function ownersOnly(userId: string, organizationId: string) {
+		const found = await database.query(
+			'select role from organization_members where organization_id = $1 and user_id = $2',
+			[organizationId, userId]
+		);
+		if (!found.rows.some((row) => hasOwner(row.role))) {
+			refuse('Only an owner of the organization can do that.');
+		}
+	}
+
 	return organization({
 		// Studio deletes an organization itself, so that its files go with it.
 		disableOrganizationDeletion: true,
@@ -67,14 +92,21 @@ export function organizationPlugin() {
 			},
 			// Changing an organization is for its owners, as on Studio's own settings page.
 			beforeUpdateOrganization: async ({ organization, member }) => {
-				if (!member.role.split(',').includes('owner')) {
-					refuse('Only an owner of the organization can do that.');
-				}
+				if (!hasOwner(member.role)) refuse('Only an owner of the organization can do that.');
 				if (organization.slug !== undefined) refuse('The slug of an organization cannot be changed.');
 				if (organization.name !== undefined) {
 					const problem = nameProblem(organization.name.trim());
 					if (problem) refuse(problem);
 				}
+			},
+			// What touches an owner is for owners: see the top of this file. Invitations are checked
+			// here. Changing and removing members is checked by the plugin itself, whose hooks for
+			// those are told who is being changed and not who is doing it.
+			beforeCreateInvitation: async ({ invitation, inviter, organization }) => {
+				if (hasOwner(invitation.role)) await ownersOnly(inviter.id, organization.id);
+			},
+			beforeCancelInvitation: async ({ invitation, cancelledBy, organization }) => {
+				if (hasOwner(invitation.role)) await ownersOnly(cancelledBy.id, organization.id);
 			}
 		}
 	});

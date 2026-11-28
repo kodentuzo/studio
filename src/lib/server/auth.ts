@@ -15,5 +15,5 @@ export const auth = betterAuth({
 	// Ids are uuids, like the ids of Studio's own tables, so the two kinds can point at each other.
 	advanced: { database: { generateId: 'uuid' } },
 	// sveltekitCookies must stay last: it sets cookies for calls made on the server.
-	plugins: [organizationPlugin(), sveltekitCookies(getRequestEvent)]
+	plugins: [organizationPlugin(pool), sveltekitCookies(getRequestEvent)]
 });

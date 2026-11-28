@@ -1,7 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.js';
+import { organizationMembers } from '#lib/server/db/auth-tables.js';
 import { db } from '#lib/server/db/index.js';
 import { organizations } from '#lib/server/db/schema.js';
 import { nameProblem } from '#lib/server/organization-plugin.js';
@@ -61,6 +62,21 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
 	};
 };
 
+const OWNERS_ONLY = 'Only an owner of the organization can do that.';
+
+/** True if the member row belongs to an owner of the organization. */
+async function memberIsOwner(organizationId: string, memberId: string) {
+	// An id that is not a uuid names nobody.
+	if (!/^[0-9a-f-]{36}$/i.test(memberId)) return false;
+	const [member] = await db
+		.select({ role: organizationMembers.role })
+		.from(organizationMembers)
+		.where(
+			and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.id, memberId))
+		);
+	return member ? isOwner(member) : false;
+}
+
 /** The sign-in library's refusal as a sentence for the page. Anything else is a real failure. */
 function refusal(thrown: unknown, action: string) {
 	if (!(thrown instanceof APIError)) throw thrown;
@@ -115,6 +131,13 @@ export const actions: Actions = {
 		const memberId = String(form.get('memberId') ?? '');
 		const role = String(form.get('role') ?? '');
 		if (!ROLES.includes(role)) return fail(400, { action: 'members', error: 'Unknown role.' });
+		// What touches an owner is for owners: making one, or changing one.
+		if (
+			!isOwner(organization) &&
+			(role === 'owner' || (await memberIsOwner(organization.id, memberId)))
+		) {
+			return fail(403, { action: 'members', error: OWNERS_ONLY });
+		}
 
 		try {
 			await auth.api.updateMemberRole({
@@ -132,6 +155,9 @@ export const actions: Actions = {
 		const organization = await requireOrganization(params.organization);
 		const form = await request.formData();
 		const memberId = String(form.get('memberId') ?? '');
+		if (!isOwner(organization) && (await memberIsOwner(organization.id, memberId))) {
+			return fail(403, { action: 'members', error: OWNERS_ONLY });
+		}
 
 		try {
 			await auth.api.removeMember({
@@ -156,6 +182,7 @@ export const actions: Actions = {
 
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return refuse(400, 'Enter an email address.');
 		if (!ROLES.includes(role)) return refuse(400, 'Unknown role.');
+		if (role === 'owner' && !isOwner(organization)) return refuse(403, OWNERS_ONLY);
 
 		try {
 			await auth.api.createInvitation({
