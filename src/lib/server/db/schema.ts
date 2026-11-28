@@ -16,8 +16,11 @@ import {
 } from 'drizzle-orm/pg-core';
 
 // A group of people and everything they keep in Studio. Each organization has its own address,
-// /organizations/<slug>, and what belongs to an organization points at its id. An organization's
-// settings will be columns here.
+// /organizations/<slug>, and what belongs to an organization points at its id.
+//
+// The sign-in library reads and writes this table too: it is the "organization" of its
+// organization plugin, set up in src/lib/server/organization-plugin.ts. Who belongs to an
+// organization, and who has been invited, are tables that library looks after itself.
 export const organizations = pgTable(
 	'organizations',
 	{
@@ -27,7 +30,9 @@ export const organizations = pgTable(
 		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+		// Two columns the sign-in library expects. Studio does not use them yet.
+		logo: text('logo'),
+		metadata: text('metadata')
 	},
 	(table) => [
 		check(

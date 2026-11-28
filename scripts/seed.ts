@@ -1,7 +1,8 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
-// It adds an account to sign in with, and the organization Acme with one project and a few
-// transactions. What is already there is left alone, so running it again changes nothing.
+// It adds an account to sign in with, and the organization Acme, which that account owns, with
+// one project and a few transactions. What is already there is left alone, so running it again
+// changes nothing.
 // Never run it against a real installation: the account's password is written right here.
 //
 // It runs outside Studio, so it reads the database address from the environment itself and
@@ -13,7 +14,8 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
-import { projects, organizations, transactions } from '../src/lib/server/db/schema.ts';
+import { organizations, projects, transactions } from '../src/lib/server/db/schema.ts';
+import { organizationPlugin } from '../src/lib/server/organization-plugin.ts';
 
 const url = process.env.POSTGRES_URL;
 if (!url) {
@@ -34,7 +36,9 @@ const auth = betterAuth({
 	baseURL: process.env.BETTER_AUTH_URL,
 	secret: process.env.BETTER_AUTH_SECRET,
 	database: pool,
-	emailAndPassword: { enabled: true }
+	emailAndPassword: { enabled: true },
+	advanced: { database: { generateId: 'uuid' } },
+	plugins: [organizationPlugin()]
 });
 const { runMigrations } = await getMigrations(auth.options);
 await runMigrations();
@@ -44,7 +48,15 @@ if (known.rowCount === 0) {
 	await auth.api.signUpEmail({ body: ACCOUNT });
 }
 
-await db.insert(organizations).values({ slug: 'acme', name: 'Acme' }).onConflictDoNothing();
+const account = await pool.query('select id from "user" where email = $1', [ACCOUNT.email]);
+
+// The organization is made through the sign-in library too, which makes the account its owner.
+const [seeded] = await db.select().from(organizations).where(eq(organizations.slug, 'acme'));
+if (!seeded) {
+	await auth.api.createOrganization({
+		body: { name: 'Acme', slug: 'acme', userId: account.rows[0].id }
+	});
+}
 const [organization] = await db.select().from(organizations).where(eq(organizations.slug, 'acme'));
 
 await db

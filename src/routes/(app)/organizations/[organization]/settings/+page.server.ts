@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { organizations } from '#lib/server/db/schema.js';
+import { nameProblem } from '#lib/server/organization-plugin.js';
 import { requireOrganization, organizationMedia } from '#lib/server/organizations.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -19,15 +20,10 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 
-		if (!name) return fail(400, { action: 'general', error: 'Give the organization a name.' });
-		if (name.length > 45) {
-			return fail(400, { action: 'general', error: 'The name can be at most 45 characters.' });
-		}
+		const problem = nameProblem(name);
+		if (problem) return fail(400, { action: 'general', error: problem });
 
-		await db
-			.update(organizations)
-			.set({ name, updatedAt: new Date() })
-			.where(eq(organizations.id, organization.id));
+		await db.update(organizations).set({ name }).where(eq(organizations.id, organization.id));
 
 		return { action: 'general', saved: true };
 	},
