@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
+	import UsersRoundIcon from "@lucide/svelte/icons/users-round";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
 	import RocketIcon from "@lucide/svelte/icons/rocket";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
@@ -76,6 +77,7 @@
 			: [
 					{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
 					{ title: "Projects", url: "/projects", icon: AppWindowIcon },
+					{ title: "Teams", url: "/teams", icon: UsersRoundIcon },
 					{ title: "Finances", url: "/finances", icon: WalletIcon },
 					{ title: "Settings", url: "/settings", icon: SettingsIcon },
 				]
