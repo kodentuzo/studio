@@ -63,6 +63,7 @@
 	const navMain = $derived(
 		inPersonal
 			? [
+					{ title: "Overview", url: `/teams/${personalTeam.slug}`, icon: LayoutDashboardIcon },
 					{
 						title: "Projects",
 						url: `/teams/${personalTeam.slug}/projects`,

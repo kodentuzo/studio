@@ -66,7 +66,7 @@
 				sideOffset={4}
 			>
 				<DropdownMenu.Item
-					onSelect={() => goto(`/teams/${personalTeam.slug}/projects`)}
+					onSelect={() => goto(`/teams/${personalTeam.slug}`)}
 					class="gap-2 p-2"
 				>
 					<div class="flex size-6 items-center justify-center rounded-md border">

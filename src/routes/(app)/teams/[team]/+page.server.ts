@@ -1,7 +1,9 @@
+import { loadOverview } from '#lib/server/overview.js';
 import { requireTeam } from '#lib/server/teams.js';
 import type { PageServerLoad } from './$types';
 
 // A team's own page. One that is unknown, or that the person may not see, is "not found".
+// For a personal team it is that person's overview: their money and their latest projects.
 export const load: PageServerLoad = async ({ params }) => {
 	const team = await requireTeam(params.team);
 	return {
@@ -12,6 +14,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			// A personal team is one person's own, and has no settings.
 			personal: team.personalUserId !== null,
 			createdAt: team.createdAt
-		}
+		},
+		overview: team.personalUserId ? await loadOverview(team, [team.id]) : null
 	};
 };
