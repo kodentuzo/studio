@@ -3,20 +3,26 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { organizations } from '#lib/server/db/schema.js';
 import { nameProblem } from '#lib/server/organization-plugin.js';
-import { requireOrganization, organizationMedia } from '#lib/server/organizations.js';
+import {
+	isOwner,
+	organizationMedia,
+	requireOrganization,
+	requireOwnedOrganization
+} from '#lib/server/organizations.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const organization = await requireOrganization(params.organization);
 	const { name, slug, createdAt } = organization;
-	return { settings: { name, slug, createdAt } };
+	// Every member can read the settings. Only an owner can change them.
+	return { settings: { name, slug, createdAt }, canManage: isOwner(organization) };
 };
 
 export const actions: Actions = {
-	// Saves the General section. Only the name can change: the slug is part of every address and
-	// of the organization's folder on disk.
+	// Saves the General section, for an owner. Only the name can change: the slug is part of
+	// every address and of the organization's folder on disk.
 	general: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+		const organization = await requireOwnedOrganization(params.organization);
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 
@@ -28,10 +34,10 @@ export const actions: Actions = {
 		return { action: 'general', saved: true };
 	},
 
-	// Deletes the organization and everything it has. The slug has to be typed, so this cannot
+	// Deletes the organization and everything it has, for an owner. The slug has to be typed, so this cannot
 	// happen by a slip of the hand.
 	delete: async ({ request, params }) => {
-		const organization = await requireOrganization(params.organization);
+		const organization = await requireOwnedOrganization(params.organization);
 		const form = await request.formData();
 		const typed = String(form.get('slug') ?? '').trim();
 

@@ -50,6 +50,21 @@ export async function requireOrganization(
 }
 
 /**
+ * True for an owner of the organization. A member can hold several roles, kept as one text with
+ * commas between them.
+ */
+export function isOwner(organization: { role: string }): boolean {
+	return organization.role.split(',').includes('owner');
+}
+
+/** The same lookup, for what only an owner may do. Anyone else is refused. */
+export async function requireOwnedOrganization(slug: string) {
+	const organization = await requireOrganization(slug);
+	if (!isOwner(organization)) error(403, 'Only an owner of the organization can do that.');
+	return organization;
+}
+
+/**
  * An organization's own part of the media folder: organizations/<slug>. Paths go in and come out
  * without that part, such as "projects/blog/icon.png", and that is also how they are stored in the
  * database.

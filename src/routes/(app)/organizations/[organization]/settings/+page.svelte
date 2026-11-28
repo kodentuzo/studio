@@ -53,6 +53,7 @@
 						type="text"
 						maxlength={45}
 						required
+						disabled={!data.canManage}
 						bind:value={name}
 						oninput={() => (saved = false)}
 					/>
@@ -74,84 +75,93 @@
 					<Field.Error>{form.error}</Field.Error>
 				{/if}
 			</Field.Group>
-			<div class="flex items-center gap-3">
-				<Button type="submit" disabled={saving}>Save</Button>
-				{#if saved}
-					<span class="text-sm text-muted-foreground">Saved</span>
-				{/if}
-			</div>
+			{#if data.canManage}
+				<div class="flex items-center gap-3">
+					<Button type="submit" disabled={saving}>Save</Button>
+					{#if saved}
+						<span class="text-sm text-muted-foreground">Saved</span>
+					{/if}
+				</div>
+			{:else}
+				<p class="text-sm text-muted-foreground">
+					Only an owner of the organization can change these.
+				</p>
+			{/if}
 		</form>
 	</Card.Content>
 </Card.Root>
 
-<Card.Root class="max-w-2xl">
-	<Card.Header>
-		<Card.Title>Delete organization</Card.Title>
-		<Card.Description>
-			Deletes the organization with its projects, transactions, documents and files. This cannot be undone.
-		</Card.Description>
-	</Card.Header>
-	<Card.Content>
-		<Button
-			variant="destructive"
-			onclick={() => {
-				typedSlug = "";
-				deleteOpen = true;
-			}}
-		>
-			Delete organization
-		</Button>
-	</Card.Content>
-</Card.Root>
+<!-- Deleting is offered to owners only. -->
+{#if data.canManage}
+	<Card.Root class="max-w-2xl">
+		<Card.Header>
+			<Card.Title>Delete organization</Card.Title>
+			<Card.Description>
+				Deletes the organization with its projects, transactions, documents and files. This cannot be undone.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<Button
+				variant="destructive"
+				onclick={() => {
+					typedSlug = "";
+					deleteOpen = true;
+				}}
+			>
+				Delete organization
+			</Button>
+		</Card.Content>
+	</Card.Root>
 
-<AlertDialog.Root bind:open={deleteOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete {data.settings.name}?</AlertDialog.Title>
-			<AlertDialog.Description>
-				Its projects, transactions, documents and files are deleted with it. This cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<form
-			method="POST"
-			action="?/delete"
-			class="flex flex-col gap-6"
-			use:enhance={() => {
-				deleting = true;
-				return async ({ update }) => {
-					await update({ reset: false });
-					deleting = false;
-				};
-			}}
-		>
-			<Field.Field>
-				<Field.Label for="delete-slug">
-					Type the organization's slug, {data.settings.slug}, to confirm
-				</Field.Label>
-				<Input
-					id="delete-slug"
-					name="slug"
-					type="text"
-					autocapitalize="off"
-					autocomplete="off"
-					spellcheck={false}
-					placeholder={data.settings.slug}
-					bind:value={typedSlug}
-				/>
-				{#if form?.action === "delete" && form.error}
-					<Field.Error>{form.error}</Field.Error>
-				{/if}
-			</Field.Field>
-			<AlertDialog.Footer>
-				<AlertDialog.Cancel type="button">Cancel</AlertDialog.Cancel>
-				<AlertDialog.Action
-					type="submit"
-					variant="destructive"
-					disabled={deleting || typedSlug.trim() !== data.settings.slug}
-				>
-					Delete organization
-				</AlertDialog.Action>
-			</AlertDialog.Footer>
-		</form>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+	<AlertDialog.Root bind:open={deleteOpen}>
+		<AlertDialog.Content>
+			<AlertDialog.Header>
+				<AlertDialog.Title>Delete {data.settings.name}?</AlertDialog.Title>
+				<AlertDialog.Description>
+					Its projects, transactions, documents and files are deleted with it. This cannot be undone.
+				</AlertDialog.Description>
+			</AlertDialog.Header>
+			<form
+				method="POST"
+				action="?/delete"
+				class="flex flex-col gap-6"
+				use:enhance={() => {
+					deleting = true;
+					return async ({ update }) => {
+						await update({ reset: false });
+						deleting = false;
+					};
+				}}
+			>
+				<Field.Field>
+					<Field.Label for="delete-slug">
+						Type the organization's slug, {data.settings.slug}, to confirm
+					</Field.Label>
+					<Input
+						id="delete-slug"
+						name="slug"
+						type="text"
+						autocapitalize="off"
+						autocomplete="off"
+						spellcheck={false}
+						placeholder={data.settings.slug}
+						bind:value={typedSlug}
+					/>
+					{#if form?.action === "delete" && form.error}
+						<Field.Error>{form.error}</Field.Error>
+					{/if}
+				</Field.Field>
+				<AlertDialog.Footer>
+					<AlertDialog.Cancel type="button">Cancel</AlertDialog.Cancel>
+					<AlertDialog.Action
+						type="submit"
+						variant="destructive"
+						disabled={deleting || typedSlug.trim() !== data.settings.slug}
+					>
+						Delete organization
+					</AlertDialog.Action>
+				</AlertDialog.Footer>
+			</form>
+		</AlertDialog.Content>
+	</AlertDialog.Root>
+{/if}

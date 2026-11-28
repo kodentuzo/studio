@@ -65,7 +65,11 @@ export function organizationPlugin() {
 					nameProblem((organization.name ?? '').trim()) ?? slugProblem(organization.slug ?? '');
 				if (problem) refuse(problem);
 			},
-			beforeUpdateOrganization: async ({ organization }) => {
+			// Changing an organization is for its owners, as on Studio's own settings page.
+			beforeUpdateOrganization: async ({ organization, member }) => {
+				if (!member.role.split(',').includes('owner')) {
+					refuse('Only an owner of the organization can do that.');
+				}
 				if (organization.slug !== undefined) refuse('The slug of an organization cannot be changed.');
 				if (organization.name !== undefined) {
 					const problem = nameProblem(organization.name.trim());
