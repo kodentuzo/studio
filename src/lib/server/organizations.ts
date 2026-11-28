@@ -15,14 +15,26 @@ import {
 
 export type Organization = typeof organizations.$inferSelect;
 
-/** The organizations a person belongs to, oldest first. The first one is where "/" leads. */
-export async function listOrganizations(userId: string): Promise<Organization[]> {
-	return db
+/** The organization this Studio belongs to, or null before Studio has been set up. */
+export async function findOrganization(): Promise<Organization | null> {
+	const [organization] = await db
+		.select()
+		.from(organizations)
+		.orderBy(asc(organizations.createdAt))
+		.limit(1);
+	return organization ?? null;
+}
+
+/** The same, but only for someone who belongs to it. Null for anyone else. */
+export async function findOrganizationOf(userId: string): Promise<Organization | null> {
+	const [organization] = await db
 		.select(getTableColumns(organizations))
 		.from(organizations)
 		.innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
 		.where(eq(organizationMembers.userId, userId))
-		.orderBy(asc(organizations.createdAt), asc(organizations.slug));
+		.orderBy(asc(organizations.createdAt))
+		.limit(1);
+	return organization ?? null;
 }
 
 /**

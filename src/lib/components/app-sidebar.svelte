@@ -32,7 +32,6 @@
 	import NavMain from "./nav-main.svelte";
 	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
-	import OrganizationSwitcher from "./organization-switcher.svelte";
 	import type { ComponentProps } from "svelte";
 
 	let {
@@ -40,14 +39,11 @@
 		collapsible = "icon",
 		user,
 		organization,
-		organizations,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
-		// The organization the links lead into, or null when there is no organization at all.
+		// The organization this Studio belongs to, or null for someone who is not part of it.
 		organization: { slug: string; name: string } | null;
-		// The organizations the person belongs to, for the switcher at the top.
-		organizations: { slug: string; name: string }[];
 	} = $props();
 
 	// The organization's overview, then the places it keeps things.
@@ -66,7 +62,26 @@
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
 		{#if organization}
-			<OrganizationSwitcher {organization} {organizations} />
+			<!-- One Studio is one organization, so there is nothing to switch between. -->
+			<Sidebar.Menu>
+				<Sidebar.MenuItem>
+					<Sidebar.MenuButton size="lg">
+						{#snippet child({ props })}
+							<a href="/organizations/{organization.slug}" {...props}>
+								<div
+									class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+								>
+									{organization.name.trim()[0]?.toUpperCase() ?? "?"}
+								</div>
+								<div class="grid flex-1 text-start text-sm leading-tight">
+									<span class="truncate font-medium">{organization.name}</span>
+									<span class="truncate text-xs">Studio</span>
+								</div>
+							</a>
+						{/snippet}
+					</Sidebar.MenuButton>
+				</Sidebar.MenuItem>
+			</Sidebar.Menu>
 		{/if}
 	</Sidebar.Header>
 	<Sidebar.Content>

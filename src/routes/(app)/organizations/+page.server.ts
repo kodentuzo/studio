@@ -1,11 +1,14 @@
 import { redirect } from '@sveltejs/kit';
-import { listOrganizations } from '#lib/server/organizations.js';
+import { findOrganization, findOrganizationOf } from '#lib/server/organizations.js';
 import type { PageServerLoad } from './$types';
 
-// Leads on to the oldest organization the person belongs to. With none, to the form that creates
-// one.
+// Leads on to this Studio's organization. Before Studio has been set up, to the page that does
+// that; and for someone who does not belong to the organization, to a page that says so.
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(303, '/auth/sign-in');
-	const [first] = await listOrganizations(locals.user.id);
-	redirect(303, first ? `/organizations/${first.slug}` : '/organizations/new');
+
+	const mine = await findOrganizationOf(locals.user.id);
+	if (mine) redirect(303, `/organizations/${mine.slug}`);
+
+	redirect(303, (await findOrganization()) ? '/not-a-member' : '/setup');
 };

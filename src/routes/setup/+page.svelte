@@ -2,7 +2,6 @@
 	import CassetteTapeIcon from "@lucide/svelte/icons/cassette-tape";
 	import { enhance } from "$app/forms";
 	import { dev } from "$app/env";
-	import { suggestSlug } from "#lib/slug.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
@@ -12,9 +11,6 @@
 	let { form }: PageProps = $props();
 
 	let name = $state("");
-	let slug = $state("");
-	// Once the slug is typed by hand, it stops following the name.
-	let slugEdited = $state(false);
 	let pending = $state(false);
 </script>
 
@@ -30,8 +26,10 @@
 		</a>
 		<Card.Root>
 			<Card.Header class="text-center">
-				<Card.Title class="text-xl">Create an organization</Card.Title>
-				<Card.Description>Everything in Studio belongs to an organization.</Card.Description>
+				<Card.Title class="text-xl">Set up this Studio</Card.Title>
+				<Card.Description>
+					Name the organization this Studio belongs to. You become its owner.
+				</Card.Description>
 			</Card.Header>
 			<Card.Content>
 				<form
@@ -47,7 +45,7 @@
 				>
 					<Field.Group>
 						<Field.Field>
-							<Field.Label for="name">Name</Field.Label>
+							<Field.Label for="name">Organization name</Field.Label>
 							<Input
 								id="name"
 								name="name"
@@ -56,36 +54,13 @@
 								placeholder="Acme"
 								required
 								bind:value={name}
-								oninput={() => {
-									if (!slugEdited) slug = suggestSlug(name);
-								}}
 							/>
-						</Field.Field>
-						<Field.Field>
-							<Field.Label for="slug">Slug</Field.Label>
-							<Input
-								id="slug"
-								name="slug"
-								type="text"
-								maxlength={40}
-								placeholder="acme"
-								autocapitalize="off"
-								autocomplete="off"
-								spellcheck={false}
-								required
-								bind:value={slug}
-								oninput={() => (slugEdited = true)}
-							/>
-							<Field.Description>
-								The short name in the organization's address: /organizations/{slug || "acme"}. Lowercase letters,
-								digits and hyphens.
-							</Field.Description>
 						</Field.Field>
 						<Field.Field>
 							{#if form?.error}
 								<Field.Error>{form.error}</Field.Error>
 							{/if}
-							<Button type="submit" disabled={pending}>Create organization</Button>
+							<Button type="submit" disabled={pending}>Set up</Button>
 						</Field.Field>
 					</Field.Group>
 				</form>
@@ -93,7 +68,7 @@
 		</Card.Root>
 		{#if dev}
 			<Field.Description class="px-6 text-center">
-				In development, <code>pnpm db:seed</code> adds an organization with some sample data.
+				In development, <code>pnpm db:seed</code> sets Studio up with some sample data.
 			</Field.Description>
 		{/if}
 	</div>
