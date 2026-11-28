@@ -9,5 +9,4 @@ The words Studio uses, such as source, take, cassette, rack and deck, are explai
 
 ## License
 
-[AGPL-3.0-only](LICENSE), or a [commercial license](LICENSE-COMMERCIAL.md) from Ivan Vinski.
-Contributions need the [CLA](CLA.md).
+[Apache-2.0](LICENSE).
