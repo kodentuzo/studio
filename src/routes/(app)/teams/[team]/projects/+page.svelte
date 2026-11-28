@@ -2,12 +2,11 @@
 	import AppWindowIcon from "@lucide/svelte/icons/app-window";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import { enhance } from "$app/forms";
-	import { mediaUrl } from "#lib/media.js";
 	import { suggestSlug } from "#lib/slug.js";
 	import * as Empty from "#lib/components/ui/empty/index.js";
 	import * as Field from "#lib/components/ui/field/index.js";
 	import * as Sheet from "#lib/components/ui/sheet/index.js";
-	import * as Table from "#lib/components/ui/table/index.js";
+	import ProjectTable from "#lib/components/project-table.svelte";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import { Input } from "#lib/components/ui/input/index.js";
 	import type { PageProps } from "./$types";
@@ -113,42 +112,5 @@
 		</Empty.Content>
 	</Empty.Root>
 {:else}
-	<Table.Root>
-		<Table.Header>
-			<Table.Row>
-				<Table.Head>Name</Table.Head>
-				<Table.Head>Slug</Table.Head>
-				<Table.Head>Description</Table.Head>
-			</Table.Row>
-		</Table.Header>
-		<Table.Body>
-			{#each data.projects as project (project.id)}
-				<Table.Row>
-					<Table.Cell class="font-medium">
-						<a
-							href="/teams/{data.team.slug}/projects/{project.slug}"
-							class="flex items-center gap-3 hover:underline"
-						>
-							{#if project.iconPath}
-								<img
-									src={mediaUrl(data.team.slug, project.iconPath)}
-									alt=""
-									class="size-8 rounded-lg border object-cover"
-								/>
-							{:else}
-								<span
-									class="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground"
-								>
-									<AppWindowIcon class="size-4" />
-								</span>
-							{/if}
-							{project.name}
-						</a>
-					</Table.Cell>
-					<Table.Cell class="text-muted-foreground">{project.slug}</Table.Cell>
-					<Table.Cell class="text-muted-foreground">{project.description ?? ""}</Table.Cell>
-				</Table.Row>
-			{/each}
-		</Table.Body>
-	</Table.Root>
+	<ProjectTable team={data.team} projects={data.projects} />
 {/if}

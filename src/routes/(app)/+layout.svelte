@@ -10,7 +10,6 @@
 	<AppSidebar
 		user={data.user}
 		organization={data.organization}
-		team={data.team}
 		personalTeam={data.personalTeam}
 		inPersonal={data.inPersonal}
 		authUrl={data.authUrl}

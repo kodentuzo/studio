@@ -40,7 +40,6 @@
 		collapsible = "icon",
 		user,
 		organization,
-		team,
 		personalTeam,
 		inPersonal,
 		authUrl,
@@ -49,8 +48,6 @@
 		user: ComponentProps<typeof NavUser>["user"];
 		// The organization this Studio belongs to.
 		organization: { slug: string; name: string };
-		// The team the Projects link follows: null when the person has none.
-		team: { slug: string; name: string } | null;
 		// The person's own team, and whether that is where they are.
 		personalTeam: { slug: string; name: string };
 		inPersonal: boolean;
@@ -59,8 +56,7 @@
 	} = $props();
 
 	// The overview, then the places Studio keeps things.
-	// Projects belong to a team, so that link follows the team in the address, or else the
-	// oldest, and is left out for someone who has no team.
+	// The organization's projects are listed in one place, team by team.
 	//
 	// In the person's own team there is what is theirs: their projects and their finances.
 	const navMain = $derived(
@@ -79,9 +75,7 @@
 				]
 			: [
 					{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
-					...(team
-						? [{ title: "Projects", url: `/teams/${team.slug}/projects`, icon: AppWindowIcon }]
-						: []),
+					{ title: "Projects", url: "/projects", icon: AppWindowIcon },
 					{ title: "Finances", url: "/finances", icon: WalletIcon },
 					{ title: "Settings", url: "/settings", icon: SettingsIcon },
 				]
