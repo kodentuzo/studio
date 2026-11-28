@@ -5,7 +5,7 @@ import {
 	findOrganizationOf,
 	managesMembers
 } from '#lib/server/organizations.js';
-import { listTeamsOf } from '#lib/server/teams.js';
+import { listTeamsOf, personalTeamOf } from '#lib/server/teams.js';
 import type { LayoutServerLoad } from './$types';
 
 // A server load makes every move into these pages ask the server first, including clicks on
@@ -22,6 +22,10 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 	if (!organization) {
 		redirect(303, (await findOrganization()) ? '/not-a-member' : '/setup');
 	}
+
+	// Everyone in the organization has a personal team. This is where it is made, the first
+	// time they arrive.
+	await personalTeamOf(organization, locals.user);
 
 	// The teams the person sees, and the one the sidebar follows: the team in the address, or
 	// else the oldest.

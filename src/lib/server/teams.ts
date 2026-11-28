@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { and, asc, eq, getTableColumns } from 'drizzle-orm';
 import { getRequestEvent } from '$app/server';
 import { teamMembers } from './db/auth-tables.js';
-import { db } from './db/index.js';
+import { db, pool } from './db/index.js';
 import { teams } from './db/schema.js';
 import {
 	fileInfo,
@@ -12,6 +12,7 @@ import {
 	removeFolder,
 	saveUpload
 } from './media.js';
+import { ensurePersonalTeam } from './organization-plugin.js';
 import { managesMembers, requireOrganization } from './organizations.js';
 
 export type Team = typeof teams.$inferSelect;
@@ -29,6 +30,25 @@ export async function listTeamsOf(userId: string, seesAll: boolean): Promise<Tea
 		.innerJoin(teamMembers, eq(teamMembers.teamId, teams.id))
 		.where(eq(teamMembers.userId, userId))
 		.orderBy(asc(teams.createdAt), asc(teams.slug));
+}
+
+/**
+ * A person's personal team: their own, with nobody else in it, for work that belongs to no team
+ * of the organization. Everyone in the organization has one. It is made the first time it is
+ * asked for, which is the person's first visit.
+ */
+export async function personalTeamOf(
+	organization: { id: string },
+	person: { id: string; name: string; email: string }
+): Promise<Team> {
+	const own = () => db.select().from(teams).where(eq(teams.personalUserId, person.id));
+
+	const [found] = await own();
+	if (found) return found;
+
+	await ensurePersonalTeam(pool, organization.id, person);
+	const [made] = await own();
+	return made;
 }
 
 /**
