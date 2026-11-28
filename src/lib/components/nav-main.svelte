@@ -4,8 +4,11 @@
 	import * as Sidebar from "#lib/components/ui/sidebar/index.js";
 
 	let {
+		label,
 		items,
 	}: {
+		// What the links are about. Read out, not shown.
+		label: string;
 		items: {
 			title: string;
 			url: string;
@@ -22,12 +25,12 @@
 </script>
 
 <Sidebar.Group>
-	<Sidebar.GroupLabel class="sr-only">Organization</Sidebar.GroupLabel>
+	<Sidebar.GroupLabel class="sr-only">{label}</Sidebar.GroupLabel>
 	<Sidebar.Menu>
 		{#each items as item (item.title)}
 			{#if !item.items?.length}
 				<Sidebar.MenuItem>
-					<Sidebar.MenuButton tooltipContent={item.title}>
+					<Sidebar.MenuButton tooltipContent={item.title} isActive={item.isActive}>
 						{#snippet child({ props })}
 							<a href={item.url} {...props}>
 								{#if item.icon}

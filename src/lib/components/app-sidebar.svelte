@@ -3,35 +3,14 @@
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import UsersRoundIcon from "@lucide/svelte/icons/users-round";
 	import WalletIcon from "@lucide/svelte/icons/wallet";
-	import RocketIcon from "@lucide/svelte/icons/rocket";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
 
-	// This is sample data.
-	const data = {
-		projects: [
-			{
-				name: "blog 1.4.0",
-				url: "#",
-				icon: RocketIcon,
-			},
-			{
-				name: "docs 0.9.2",
-				url: "#",
-				icon: RocketIcon,
-			},
-			{
-				name: "shop 2.0.1",
-				url: "#",
-				icon: RocketIcon,
-			},
-		],
-	};
 </script>
 
 <script lang="ts">
+	import { page } from "$app/state";
 	import * as Sidebar from "#lib/components/ui/sidebar/index.js";
 	import NavMain from "./nav-main.svelte";
-	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
 	import AccountSwitcher from "./account-switcher.svelte";
 	import type { ComponentProps } from "svelte";
@@ -57,32 +36,48 @@
 	} = $props();
 
 	// The overview, then the places Studio keeps things.
-	// The organization's projects are listed in one place, team by team.
 	//
 	// In the person's own team there is what is theirs: their projects and their finances.
-	const navMain = $derived(
-		inPersonal
-			? [
-					{ title: "Overview", url: `/teams/${personalTeam.slug}`, icon: LayoutDashboardIcon },
-					{
-						title: "Projects",
-						url: `/teams/${personalTeam.slug}/projects`,
-						icon: AppWindowIcon,
-					},
-					{
-						title: "Finances",
-						url: `/teams/${personalTeam.slug}/finances`,
-						icon: WalletIcon,
-					},
-				]
-			: [
-					{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
-					{ title: "Projects", url: "/projects", icon: AppWindowIcon },
-					{ title: "Teams", url: "/teams", icon: UsersRoundIcon },
-					{ title: "Finances", url: "/finances", icon: WalletIcon },
-					{ title: "Settings", url: "/settings", icon: SettingsIcon },
-				]
-	);
+	// The link for the page being looked at is marked. A project's own page is under its team's
+	// address, so in the organization everything under a team's projects counts as Projects, and
+	// the rest under /teams as Teams.
+	const navMain = $derived.by(() => {
+		const path = page.url.pathname;
+		const under = (url: string) => path === url || path.startsWith(`${url}/`);
+
+		if (inPersonal) {
+			const base = `/teams/${personalTeam.slug}`;
+			return [
+				{ title: "Overview", url: base, icon: LayoutDashboardIcon, isActive: path === base },
+				{
+					title: "Projects",
+					url: `${base}/projects`,
+					icon: AppWindowIcon,
+					isActive: under(`${base}/projects`),
+				},
+				{
+					title: "Finances",
+					url: `${base}/finances`,
+					icon: WalletIcon,
+					isActive: under(`${base}/finances`),
+				},
+			];
+		}
+
+		const inProjects = under("/projects") || /^\/teams\/[^/]+\/projects(\/|$)/.test(path);
+		return [
+			{ title: "Overview", url: "/", icon: LayoutDashboardIcon, isActive: path === "/" },
+			{ title: "Projects", url: "/projects", icon: AppWindowIcon, isActive: inProjects },
+			{ title: "Finances", url: "/finances", icon: WalletIcon, isActive: under("/finances") },
+			{
+				title: "Teams",
+				url: "/teams",
+				icon: UsersRoundIcon,
+				isActive: under("/teams") && !inProjects,
+			},
+			{ title: "Settings", url: "/settings", icon: SettingsIcon, isActive: under("/settings") },
+		];
+	});
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
@@ -90,10 +85,7 @@
 		<AccountSwitcher {user} {organization} {personalTeam} {inPersonal} />
 	</Sidebar.Header>
 	<Sidebar.Content>
-		<NavMain items={navMain} />
-		{#if !inPersonal}
-			<NavProjects projects={data.projects} />
-		{/if}
+		<NavMain label={inPersonal ? "Your space" : "Organization"} items={navMain} />
 	</Sidebar.Content>
 	<Sidebar.Footer>
 		<NavUser {user} {authUrl} />
