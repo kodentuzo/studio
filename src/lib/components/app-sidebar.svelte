@@ -46,7 +46,7 @@
 		user: ComponentProps<typeof NavUser>["user"];
 		// The organization the links lead into, or null when there is no organization at all.
 		organization: { slug: string; name: string } | null;
-		// Every organization, for the switcher at the top.
+		// The organizations the person belongs to, for the switcher at the top.
 		organizations: { slug: string; name: string }[];
 	} = $props();
 

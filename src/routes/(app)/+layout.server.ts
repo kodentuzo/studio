@@ -9,8 +9,9 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		redirect(303, '/auth/sign-in');
 	}
 
-	// The organization the sidebar's links lead into: the one in the address, or else the oldest.
-	const organizations = await listOrganizations();
+	// The person's organizations, and the one the sidebar's links lead into: the one in the
+	// address, or else the oldest.
+	const organizations = await listOrganizations(locals.user.id);
 	const organization =
 		organizations.find((other) => other.slug === params.organization) ?? organizations[0] ?? null;
 

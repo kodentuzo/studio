@@ -1,5 +1,7 @@
 import { error } from '@sveltejs/kit';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns } from 'drizzle-orm';
+import { getRequestEvent } from '$app/server';
+import { organizationMembers } from './db/auth-tables.js';
 import { db } from './db/index.js';
 import { organizations } from './db/schema.js';
 import {
@@ -13,24 +15,36 @@ import {
 
 export type Organization = typeof organizations.$inferSelect;
 
-/** Every organization, oldest first. The first one is where "/" leads. */
-export async function listOrganizations(): Promise<Organization[]> {
+/** The organizations a person belongs to, oldest first. The first one is where "/" leads. */
+export async function listOrganizations(userId: string): Promise<Organization[]> {
 	return db
-		.select()
+		.select(getTableColumns(organizations))
 		.from(organizations)
+		.innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
+		.where(eq(organizationMembers.userId, userId))
 		.orderBy(asc(organizations.createdAt), asc(organizations.slug));
 }
 
 /**
- * The organization an address names: the "acme" in /organizations/acme/projects. Answers "not
- * found" if there is no such organization. Every page and action under an organization starts here,
- * and uses the organization's id in each query it makes.
+ * The organization an address names: the "acme" in /organizations/acme/projects. Every page and
+ * action under an organization starts here, and uses the organization's id in each query it
+ * makes.
+ *
+ * It is only handed to someone who belongs to it. An organization the signed-in person is not a
+ * member of is answered exactly like one that does not exist, so an address cannot be used to
+ * find out which organizations there are. The person is read from the request being answered.
  */
-export async function requireOrganization(slug: string): Promise<Organization> {
-	const [organization] = await db
-		.select()
-		.from(organizations)
-		.where(eq(organizations.slug, slug));
+export async function requireOrganization(
+	slug: string
+): Promise<Organization & { role: string }> {
+	const { user } = getRequestEvent().locals;
+	const [organization] = user
+		? await db
+				.select({ ...getTableColumns(organizations), role: organizationMembers.role })
+				.from(organizations)
+				.innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
+				.where(and(eq(organizations.slug, slug), eq(organizationMembers.userId, user.id)))
+		: [];
 	if (!organization) error(404, 'That organization does not exist.');
 	return organization;
 }
