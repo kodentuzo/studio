@@ -78,6 +78,13 @@
       "when": 1795700802020,
       "tag": "0010_transaction_team",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795829871727,
+      "tag": "0011_organizations",
+      "breakpoints": true
     }
   ]
 }

@@ -32,28 +32,28 @@
 	import NavMain from "./nav-main.svelte";
 	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
-	import TeamSwitcher from "./team-switcher.svelte";
+	import OrganizationSwitcher from "./organization-switcher.svelte";
 	import type { ComponentProps } from "svelte";
 
 	let {
 		ref = $bindable(null),
 		collapsible = "icon",
 		user,
-		team,
-		teams,
+		organization,
+		organizations,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
-		// The team the links lead into, or null when there is no team at all.
-		team: { slug: string; name: string } | null;
-		// Every team, for the switcher at the top.
-		teams: { slug: string; name: string }[];
+		// The organization the links lead into, or null when there is no organization at all.
+		organization: { slug: string; name: string } | null;
+		// Every organization, for the switcher at the top.
+		organizations: { slug: string; name: string }[];
 	} = $props();
 
-	// The team's overview, then the places it keeps things.
+	// The organization's overview, then the places it keeps things.
 	const navMain = $derived.by(() => {
-		if (!team) return [];
-		const base = `/teams/${team.slug}`;
+		if (!organization) return [];
+		const base = `/organizations/${organization.slug}`;
 		return [
 			{ title: "Overview", url: base, icon: LayoutDashboardIcon },
 			{ title: "Projects", url: `${base}/projects`, icon: AppWindowIcon },
@@ -65,8 +65,8 @@
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		{#if team}
-			<TeamSwitcher {team} {teams} />
+		{#if organization}
+			<OrganizationSwitcher {organization} {organizations} />
 		{/if}
 	</Sidebar.Header>
 	<Sidebar.Content>

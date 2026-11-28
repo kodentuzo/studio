@@ -1,6 +1,6 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
-// It adds an account to sign in with, and the team Acme with one project and a few
+// It adds an account to sign in with, and the organization Acme with one project and a few
 // transactions. What is already there is left alone, so running it again changes nothing.
 // Never run it against a real installation: the account's password is written right here.
 //
@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
-import { projects, teams, transactions } from '../src/lib/server/db/schema.ts';
+import { projects, organizations, transactions } from '../src/lib/server/db/schema.ts';
 
 const url = process.env.POSTGRES_URL;
 if (!url) {
@@ -44,13 +44,13 @@ if (known.rowCount === 0) {
 	await auth.api.signUpEmail({ body: ACCOUNT });
 }
 
-await db.insert(teams).values({ slug: 'acme', name: 'Acme' }).onConflictDoNothing();
-const [team] = await db.select().from(teams).where(eq(teams.slug, 'acme'));
+await db.insert(organizations).values({ slug: 'acme', name: 'Acme' }).onConflictDoNothing();
+const [organization] = await db.select().from(organizations).where(eq(organizations.slug, 'acme'));
 
 await db
 	.insert(projects)
 	.values({
-		teamId: team.id,
+		organizationId: organization.id,
 		slug: 'sokoban',
 		name: 'Sokoban',
 		shortName: 'Sokoban',
@@ -60,12 +60,12 @@ await db
 	})
 	.onConflictDoNothing();
 
-// Transactions have nothing to tell two runs apart by, so they are only added to a team that
-// has none.
+// Transactions have nothing to tell two runs apart by, so they are only added to an organization
+// that has none.
 const [existing] = await db
 	.select({ id: transactions.id })
 	.from(transactions)
-	.where(eq(transactions.teamId, team.id))
+	.where(eq(transactions.organizationId, organization.id))
 	.limit(1);
 
 if (!existing) {
@@ -75,13 +75,15 @@ if (!existing) {
 		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), number)).toISOString().slice(0, 10);
 
 	await db.insert(transactions).values([
-		{ teamId: team.id, date: day(1), amount: '500.00', counterparty: 'Opening balance', source: 'opening' },
-		{ teamId: team.id, date: day(2), amount: '-7.49', counterparty: 'Hetzner', note: 'Server' },
-		{ teamId: team.id, date: day(3), amount: '-12.00', counterparty: 'Namecheap', note: 'Domain renewal' },
-		{ teamId: team.id, date: day(5), amount: '250.00', counterparty: 'Globex', note: 'Invoice 2026-001' },
-		{ teamId: team.id, date: day(20), amount: '-20.00', counterparty: 'Anthropic', status: 'planned' }
+		{ organizationId: organization.id, date: day(1), amount: '500.00', counterparty: 'Opening balance', source: 'opening' },
+		{ organizationId: organization.id, date: day(2), amount: '-7.49', counterparty: 'Hetzner', note: 'Server' },
+		{ organizationId: organization.id, date: day(3), amount: '-12.00', counterparty: 'Namecheap', note: 'Domain renewal' },
+		{ organizationId: organization.id, date: day(5), amount: '250.00', counterparty: 'Globex', note: 'Invoice 2026-001' },
+		{ organizationId: organization.id, date: day(20), amount: '-20.00', counterparty: 'Anthropic', status: 'planned' }
 	]);
 }
 
 await pool.end();
-console.log(`Seeded the team Acme and the account ${ACCOUNT.email}: open /teams/acme`);
+console.log(
+	`Seeded the organization Acme and the account ${ACCOUNT.email}: open /organizations/acme`
+);

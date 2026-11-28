@@ -22,7 +22,7 @@
 </script>
 
 <Sidebar.Group>
-	<Sidebar.GroupLabel class="sr-only">Team</Sidebar.GroupLabel>
+	<Sidebar.GroupLabel class="sr-only">Organization</Sidebar.GroupLabel>
 	<Sidebar.Menu>
 		{#each items as item (item.title)}
 			{#if !item.items?.length}

@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { listTeams } from '#lib/server/teams.js';
+import { listOrganizations } from '#lib/server/organizations.js';
 import type { LayoutServerLoad } from './$types';
 
 // A server load makes every move into these pages ask the server first, including clicks on
@@ -9,14 +9,15 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		redirect(303, '/auth/sign-in');
 	}
 
-	// The team the sidebar's links lead into: the one in the address, or else the oldest.
-	const teams = await listTeams();
-	const team = teams.find((team) => team.slug === params.team) ?? teams[0] ?? null;
+	// The organization the sidebar's links lead into: the one in the address, or else the oldest.
+	const organizations = await listOrganizations();
+	const organization =
+		organizations.find((other) => other.slug === params.organization) ?? organizations[0] ?? null;
 
 	return {
 		user: locals.user,
-		team: team && { slug: team.slug, name: team.name },
-		// Every team, for the switcher at the top of the sidebar.
-		teams: teams.map(({ slug, name }) => ({ slug, name }))
+		organization: organization && { slug: organization.slug, name: organization.name },
+		// Every organization, for the switcher at the top of the sidebar.
+		organizations: organizations.map(({ slug, name }) => ({ slug, name }))
 	};
 };

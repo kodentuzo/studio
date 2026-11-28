@@ -15,14 +15,15 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 
-// A group of people and everything they keep in Studio. Each team has its own address,
-// /teams/<slug>, and what belongs to a team points at its id. A team's settings will be columns
-// here.
-export const teams = pgTable(
-	'teams',
+// A group of people and everything they keep in Studio. Each organization has its own address,
+// /organizations/<slug>, and what belongs to an organization points at its id. An organization's
+// settings will be columns here.
+export const organizations = pgTable(
+	'organizations',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The short name in the team's address. Other tables point at the id, never at this.
+		// The short name in the organization's address. Other tables point at the id, never at
+		// this.
 		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -30,10 +31,10 @@ export const teams = pgTable(
 	},
 	(table) => [
 		check(
-			'teams_slug_shape',
+			'organizations_slug_shape',
 			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`
 		),
-		check('teams_name_length', sql`char_length(${table.name}) between 1 and 45`)
+		check('organizations_name_length', sql`char_length(${table.name}) between 1 and 45`)
 	]
 );
 
@@ -42,10 +43,10 @@ export const transactions = pgTable(
 	'transactions',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The team whose money it is. Deleting a team deletes its transactions.
-		teamId: uuid('team_id')
+		// The organization whose money it is. Deleting an organization deletes its transactions.
+		organizationId: uuid('organization_id')
 			.notNull()
-			.references(() => teams.id, { onDelete: 'cascade' }),
+			.references(() => organizations.id, { onDelete: 'cascade' }),
 		date: date('date').notNull(),
 		amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
 		currency: char('currency', { length: 3 }).notNull().default('EUR'),
@@ -60,25 +61,25 @@ export const transactions = pgTable(
 	(table) => [
 		check('transactions_amount_not_zero', sql`${table.amount} <> 0`),
 		check('transactions_status_known', sql`${table.status} in ('planned', 'paid')`),
-		// Each team has at most one opening balance.
+		// Each organization has at most one opening balance.
 		uniqueIndex('transactions_one_opening')
-			.on(table.teamId, table.source)
+			.on(table.organizationId, table.source)
 			.where(sql`${table.source} = 'opening'`)
 	]
 );
 
 // The invoices, receipts and other papers that belong to a transaction. Each one is a file in
-// the "finances" folder of its team's part of the media folder, named after its id. Nobody
+// the "finances" folder of its organization's part of the media folder, named after its id. Nobody
 // browses that folder, so the name the file was uploaded under is kept here.
 export const transactionDocuments = pgTable(
 	'transaction_documents',
 	{
 		// Also the file's name on disk, with an ending for its type: <id>.pdf.
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The team it belongs to, known from the moment it is uploaded.
-		teamId: uuid('team_id')
+		// The organization it belongs to, known from the moment it is uploaded.
+		organizationId: uuid('organization_id')
 			.notNull()
-			.references(() => teams.id, { onDelete: 'cascade' }),
+			.references(() => organizations.id, { onDelete: 'cascade' }),
 		// Empty between the upload and the save of the transaction it was uploaded for. One left
 		// that way was never saved, and is cleared out after a day.
 		transactionId: uuid('transaction_id').references(() => transactions.id, {
@@ -99,12 +100,12 @@ export const projects = pgTable(
 	'projects',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The team it belongs to. Deleting a team deletes its projects.
-		teamId: uuid('team_id')
+		// The organization it belongs to. Deleting an organization deletes its projects.
+		organizationId: uuid('organization_id')
 			.notNull()
-			.references(() => teams.id, { onDelete: 'cascade' }),
-		// The short name in the project's address, after its team's. No two projects of one team
-		// share it.
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		// The short name in the project's address, after its organization's. No two projects of one
+		// organization share it.
 		slug: text('slug').notNull(),
 		name: text('name').notNull(),
 		// The label under the home-screen icon. When empty, the name is used.
@@ -112,7 +113,7 @@ export const projects = pgTable(
 		description: text('description'),
 		themeColor: text('theme_color'),
 		backgroundColor: text('background_color'),
-		// The icon's path inside the team's part of the media folder.
+		// The icon's path inside the organization's part of the media folder.
 		iconPath: text('icon_path'),
 		// Named links, read if present: app, privacy, terms. The allowed names and the shape of
 		// each link are checked in code; here only that it is an object.
@@ -121,7 +122,7 @@ export const projects = pgTable(
 		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [
-		unique('projects_team_slug_unique').on(table.teamId, table.slug),
+		unique('projects_organization_slug_unique').on(table.organizationId, table.slug),
 		check(
 			'projects_slug_shape',
 			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`
