@@ -32,8 +32,15 @@ export const auth = betterAuth({
 	// Someone Studio already knows by their email is the same person when the account service
 	// vouches for that email: it is Kodentuzo's own, so it is believed.
 	account: { accountLinking: { enabled: true, trustedProviders: ['auth'] } },
-	// Ids are uuids, like the ids of Studio's own tables, so the two kinds can point at each other.
-	advanced: { database: { generateId: 'uuid' } },
+	advanced: {
+		// Ids are uuids, like the ids of Studio's own tables, so the two kinds can point at each
+		// other.
+		database: { generateId: 'uuid' },
+		// Cookies named for Studio alone. A browser keeps cookies by host and not by port, so on
+		// one machine Studio and the account service would otherwise overwrite each other's
+		// session.
+		cookiePrefix: 'kodentuzo-studio'
+	},
 	// Someone who is no longer in the organization does not keep their personal team. The
 	// plugin has no single place to hear of both ways out, so it is done here, after either.
 	hooks: {
