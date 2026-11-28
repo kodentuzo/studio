@@ -13,13 +13,14 @@ import {
 	saveUpload
 } from './media.js';
 import { ensurePersonalTeam } from './organization-plugin.js';
-import { managesMembers, requireOrganization } from './organizations.js';
+import { isOwner, managesMembers, requireOrganization } from './organizations.js';
 
 export type Team = typeof teams.$inferSelect;
 
-// Who sees which team: the owners and admins of the organization see every team, and everyone
-// else sees the teams they are in. A team someone may not see is answered exactly like one that
-// does not exist.
+// Who sees which team: the owners and admins of the organization see every team it has made,
+// and everyone else sees the teams they are in. A personal team is different: it is for its
+// person and the organization's owners. A team someone may not see is answered exactly like
+// one that does not exist.
 
 /**
  * The organization's teams a person sees, oldest first. `seesAll` is true for an owner or an
@@ -69,9 +70,18 @@ export async function requireTeam(slug: string): Promise<Team> {
 	const organization = await requireOrganization();
 	const [team] = await db.select().from(teams).where(eq(teams.slug, slug));
 	if (!team) error(404, 'That team does not exist.');
-	if (managesMembers(organization)) return team;
 
 	const { user } = getRequestEvent().locals;
+
+	// A personal team is its person's own. The organization's owners can open it too, and
+	// nobody else: not an admin, though an admin sees every other team.
+	if (team.personalUserId) {
+		if (team.personalUserId === user!.id || isOwner(organization)) return team;
+		error(404, 'That team does not exist.');
+	}
+
+	if (managesMembers(organization)) return team;
+
 	const [membership] = await db
 		.select({ id: teamMembers.id })
 		.from(teamMembers)
