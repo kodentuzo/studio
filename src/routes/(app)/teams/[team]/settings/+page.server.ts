@@ -13,10 +13,13 @@ import type { Actions, PageServerLoad } from './$types';
 // A team's settings: its name, who is in it, and deleting it. Everyone in the team can read
 // them. Changing them is for the organization's owners and admins: a team has no roles of its
 // own.
+//
+// A personal team has no settings. Its name, its one member and its end all follow its person,
+// so for one this page is "not found".
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const organization = await requireOrganization();
-	const team = await requireTeam(params.team);
+	const team = await requireTeamWithSettings(params.team);
 	const canManage = managesMembers(organization);
 
 	const members = await db
@@ -50,13 +53,20 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	};
 };
 
+/** The team an address names, unless it is a personal team: those have no settings. */
+async function requireTeamWithSettings(slug: string) {
+	const team = await requireTeam(slug);
+	if (team.personalUserId) error(404, 'That team does not exist.');
+	return team;
+}
+
 /** The team, for what only an owner or an admin of the organization may do with it. */
 async function requireManagedTeam(slug: string) {
 	const organization = await requireOrganization();
 	if (!managesMembers(organization)) {
 		error(403, 'Only an owner or an admin of the organization can do that.');
 	}
-	return { organization, team: await requireTeam(slug) };
+	return { organization, team: await requireTeamWithSettings(slug) };
 }
 
 /** The sign-in library's refusal as a sentence for the page. Anything else is a real failure. */
@@ -127,10 +137,6 @@ export const actions: Actions = {
 	// a slip of the hand.
 	delete: async ({ request, params }) => {
 		const { team } = await requireManagedTeam(params.team);
-		// A personal team is not deleted by hand: it goes when its person leaves the organization.
-		if (team.personalUserId) {
-			return fail(400, { action: 'delete', error: 'A personal team cannot be deleted.' });
-		}
 		const form = await request.formData();
 		const typed = String(form.get('slug') ?? '').trim();
 

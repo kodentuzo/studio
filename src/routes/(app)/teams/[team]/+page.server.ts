@@ -9,6 +9,8 @@ export const load: PageServerLoad = async ({ params }) => {
 			name: team.name,
 			slug: team.slug,
 			memberCount: team.memberCount,
+			// A personal team is one person's own, and has no settings.
+			personal: team.personalUserId !== null,
 			createdAt: team.createdAt
 		}
 	};

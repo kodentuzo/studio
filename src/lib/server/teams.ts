@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { and, asc, eq, getTableColumns } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, isNull } from 'drizzle-orm';
 import { getRequestEvent } from '$app/server';
 import { teamMembers } from './db/auth-tables.js';
 import { db, pool } from './db/index.js';
@@ -21,14 +21,24 @@ export type Team = typeof teams.$inferSelect;
 // else sees the teams they are in. A team someone may not see is answered exactly like one that
 // does not exist.
 
-/** The teams a person sees, oldest first. `seesAll` is true for an owner or an admin. */
+/**
+ * The organization's teams a person sees, oldest first. `seesAll` is true for an owner or an
+ * admin. Personal teams are not among them: those are nobody's but their person's, and are
+ * reached another way, through personalTeamOf.
+ */
 export async function listTeamsOf(userId: string, seesAll: boolean): Promise<Team[]> {
-	if (seesAll) return db.select().from(teams).orderBy(asc(teams.createdAt), asc(teams.slug));
+	if (seesAll) {
+		return db
+			.select()
+			.from(teams)
+			.where(isNull(teams.personalUserId))
+			.orderBy(asc(teams.createdAt), asc(teams.slug));
+	}
 	return db
 		.select(getTableColumns(teams))
 		.from(teams)
 		.innerJoin(teamMembers, eq(teamMembers.teamId, teams.id))
-		.where(eq(teamMembers.userId, userId))
+		.where(and(eq(teamMembers.userId, userId), isNull(teams.personalUserId)))
 		.orderBy(asc(teams.createdAt), asc(teams.slug));
 }
 

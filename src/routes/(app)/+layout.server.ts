@@ -27,7 +27,7 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 	// time they arrive.
 	await personalTeamOf(organization, locals.user);
 
-	// The teams the person sees, and the one the sidebar follows: the team in the address, or
+	// The organization's teams the person sees, and the one the sidebar follows: the team in the address, or
 	// else the oldest.
 	const canManageTeams = managesMembers(organization);
 	const teams = (await listTeamsOf(locals.user.id, canManageTeams)).map(({ slug, name }) => ({
