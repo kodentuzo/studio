@@ -1,7 +1,7 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
 // It adds an account to sign in with, the organization Acme, which that account owns, the team
-// Games, one project and a few transactions. What is already there is left alone, so running it
+// Games with one project, and a few transactions. What is already there is left alone, so running it
 // again changes nothing.
 // Never run it against a real installation: the account's password is written right here.
 //
@@ -58,8 +58,8 @@ if (!seeded) {
 }
 
 // A team, with the account in it. Made as the account itself, the way the page does it.
-const [team] = await db.select().from(teams).limit(1);
-if (!team) {
+const [madeBefore] = await db.select().from(teams).limit(1);
+if (!madeBefore) {
 	const signedIn = await auth.api.signInEmail({
 		body: { email: ACCOUNT.email, password: ACCOUNT.password },
 		returnHeaders: true
@@ -81,9 +81,12 @@ if (!team) {
 	});
 }
 
+const [team] = await db.select().from(teams).limit(1);
+
 await db
 	.insert(projects)
 	.values({
+		teamId: team.id,
 		slug: 'sokoban',
 		name: 'Sokoban',
 		shortName: 'Sokoban',

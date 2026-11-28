@@ -131,15 +131,20 @@ export const projects = pgTable(
 	'projects',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
-		// The short name in the project's address. No two projects share it.
-		slug: text('slug').notNull().unique(),
+		// The team it belongs to. Deleting a team deletes its projects.
+		teamId: uuid('team_id')
+			.notNull()
+			.references(() => teams.id, { onDelete: 'cascade' }),
+		// The short name in the project's address, after its team's. No two projects of one team
+		// share it.
+		slug: text('slug').notNull(),
 		name: text('name').notNull(),
 		// The label under the home-screen icon. When empty, the name is used.
 		shortName: text('short_name'),
 		description: text('description'),
 		themeColor: text('theme_color'),
 		backgroundColor: text('background_color'),
-		// The icon's path inside the media folder.
+		// The icon's path inside the team's part of the media folder.
 		iconPath: text('icon_path'),
 		// Named links, read if present: app, privacy, terms. The allowed names and the shape of
 		// each link are checked in code; here only that it is an object.
@@ -148,6 +153,7 @@ export const projects = pgTable(
 		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(table) => [
+		unique('projects_team_slug_unique').on(table.teamId, table.slug),
 		check(
 			'projects_slug_shape',
 			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`

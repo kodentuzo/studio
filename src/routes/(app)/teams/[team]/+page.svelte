@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "#lib/components/ui/button/index.js";
 	import type { PageProps } from "./$types";
 
 	let { data }: PageProps = $props();
@@ -12,3 +13,7 @@
 	{data.current.memberCount === 1 ? "1 member" : `${data.current.memberCount} members`} · made
 	{dateFormat.format(data.current.createdAt)}
 </p>
+
+<div>
+	<Button href="/teams/{data.current.slug}/projects" variant="outline">Projects</Button>
+</div>

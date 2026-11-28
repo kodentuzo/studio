@@ -4,6 +4,14 @@ import { getRequestEvent } from '$app/server';
 import { teamMembers } from './db/auth-tables.js';
 import { db } from './db/index.js';
 import { teams } from './db/schema.js';
+import {
+	fileInfo,
+	openFile,
+	readFileBytes,
+	removeFile,
+	removeFolder,
+	saveUpload
+} from './media.js';
 import { managesMembers, requireOrganization } from './organizations.js';
 
 export type Team = typeof teams.$inferSelect;
@@ -40,4 +48,28 @@ export async function requireTeam(slug: string): Promise<Team> {
 		.where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, user!.id)));
 	if (!membership) error(404, 'That team does not exist.');
 	return team;
+}
+
+/**
+ * A team's own part of the media folder: teams/<slug>. Paths go in and come out without that
+ * part, such as "projects/blog/icon.png", and that is also how they are stored in the database.
+ */
+export function teamMedia(team: { slug: string }) {
+	const root = `teams/${team.slug}`;
+	const inside = (path: string) => `${root}/${path}`;
+
+	return {
+		/** The path from the top of the media folder, for code that takes one. */
+		path: inside,
+		info: (path: string) => fileInfo(inside(path)),
+		open: (path: string) => openFile(inside(path)),
+		read: (path: string) => readFileBytes(inside(path)),
+		remove: (path: string) => removeFile(inside(path)),
+		/** Deletes every file the team has. For when the team itself is deleted. */
+		removeAll: () => removeFolder(root),
+		async save(file: File, dir: string) {
+			const stored = await saveUpload(file, inside(dir));
+			return 'error' in stored ? stored : { ...stored, path: stored.path.slice(root.length + 1) };
+		}
+	};
 }

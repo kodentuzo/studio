@@ -1,11 +1,13 @@
 import { error } from '@sveltejs/kit';
-import { media } from '#lib/server/media.js';
+import { teamMedia } from '#lib/server/teams.js';
 import type { RequestHandler } from './$types';
 
 // Serves one file from a project's folder. This is the only part of the media folder with a
 // public address: hooks.server.ts lets it through without a sign-in.
 export const GET: RequestHandler = async ({ params }) => {
-	const file = await media.open(`projects/${params.slug}/${params.name}`);
+	const file = await teamMedia({ slug: params.team }).open(
+		`projects/${params.slug}/${params.name}`
+	);
 	if (!file) error(404, 'That file does not exist.');
 
 	return new Response(file.body, {

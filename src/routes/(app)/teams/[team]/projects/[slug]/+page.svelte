@@ -222,7 +222,7 @@
 					style="width: {cropView.width}px; height: {cropView.height}px;"
 				>
 					<img
-						src={mediaUrl(cropping.path)}
+						src={mediaUrl(data.team.slug, cropping.path)}
 						alt="Before cropping"
 						class="pointer-events-none size-full select-none"
 						draggable="false"
@@ -270,7 +270,7 @@
 <Breadcrumb.Root>
 	<Breadcrumb.List>
 		<Breadcrumb.Item>
-			<Breadcrumb.Link href="/projects">Projects</Breadcrumb.Link>
+			<Breadcrumb.Link href="/teams/{data.team.slug}/projects">Projects</Breadcrumb.Link>
 		</Breadcrumb.Item>
 		<Breadcrumb.Separator />
 		<Breadcrumb.Item>
@@ -311,7 +311,7 @@
 					{#if iconPath}
 						<div class="flex items-center gap-3">
 							<img
-								src={mediaUrl(iconPath)}
+								src={mediaUrl(data.team.slug, iconPath)}
 								alt="The project's icon"
 								class="size-16 rounded-xl border object-cover"
 							/>

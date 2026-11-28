@@ -56,12 +56,16 @@
 	} = $props();
 
 	// The overview, then the places Studio keeps things.
-	const navMain = [
+	// Projects belong to a team, so that link follows the team the switcher shows, and is left
+	// out for someone who has no team.
+	const navMain = $derived([
 		{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
-		{ title: "Projects", url: "/projects", icon: AppWindowIcon },
+		...(team
+			? [{ title: "Projects", url: `/teams/${team.slug}/projects`, icon: AppWindowIcon }]
+			: []),
 		{ title: "Finances", url: "/finances", icon: WalletIcon },
 		{ title: "Settings", url: "/settings", icon: SettingsIcon },
-	];
+	]);
 </script>
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
