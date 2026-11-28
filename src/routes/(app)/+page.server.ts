@@ -1,6 +1,7 @@
 import { and, eq, gte, lte, ne, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.js';
 import { transactions } from '#lib/server/db/schema.js';
+import { transactionsOf } from '#lib/server/finance-owner.js';
 import { requireOrganization } from '#lib/server/organizations.js';
 import type { PageServerLoad } from './$types';
 
@@ -23,7 +24,9 @@ export const load: PageServerLoad = async () => {
 				gte(transactions.date, `${year}-01-01`),
 				lte(transactions.date, `${year}-12-31`),
 				ne(transactions.source, 'opening'),
-				eq(transactions.status, 'paid')
+				eq(transactions.status, 'paid'),
+				// The organization's money only: a person's own is not part of it.
+				transactionsOf(null)
 			)
 		)
 		.groupBy(sql`1`);

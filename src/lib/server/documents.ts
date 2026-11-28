@@ -1,13 +1,20 @@
 import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { db } from './db/index.js';
 import { transactionDocuments } from './db/schema.js';
-import { media } from './media.js';
+import {
+	documentsOwnedBy,
+	ownerId,
+	ownerMedia,
+	type FinanceOwner
+} from './finance-owner.js';
 import { checkUpload, cleanName } from './uploads.js';
 
 // The papers that belong to transactions: invoices, receipts and the like. Their files
-// sit in one flat folder inside the media folder, each named after its row's id. That
-// folder has no address of its own: a document is only ever opened through Finances, by
-// its id.
+// sit in one flat folder, each named after its row's id: the organization's inside the media
+// folder, a person's inside their personal team's folder. That folder has no address of its
+// own: a document is only ever opened through Finances, by its id.
+//
+// Every function here is told whose finances it is working on, and never touches another's.
 
 const FOLDER = 'finances';
 
@@ -36,7 +43,10 @@ export type StoredDocument = { id: string; name: string; contentType: string; si
  * Checks an upload and stores it as a document that belongs to no transaction
  * yet. Saving the transaction it was uploaded for is what attaches it.
  */
-export async function storeDocument(file: File): Promise<StoredDocument | { error: string }> {
+export async function storeDocument(
+	owner: FinanceOwner,
+	file: File
+): Promise<StoredDocument | { error: string }> {
 	const checked = await checkUpload(file);
 	if ('error' in checked) return checked;
 
@@ -48,46 +58,51 @@ export async function storeDocument(file: File): Promise<StoredDocument | { erro
 	};
 
 	const path = documentPath(document);
-	const stored = await media.save(
+	const stored = await ownerMedia(owner).save(
 		new File([file], path.slice(FOLDER.length + 1)),
 		FOLDER
 	);
 	if ('error' in stored) return stored;
 
-	await db.insert(transactionDocuments).values(document);
+	await db.insert(transactionDocuments).values({ ...document, teamId: ownerId(owner) });
 	return document;
 }
 
-/** One document, or null. */
-export async function findDocument(id: string) {
+/** One of the owner's documents, or null. */
+export async function findDocument(owner: FinanceOwner, id: string) {
 	if (!isDocumentId(id)) return null;
 	const [document] = await db
 		.select()
 		.from(transactionDocuments)
-		.where(
-			eq(transactionDocuments.id, id)
-		);
+		.where(and(eq(transactionDocuments.id, id), documentsOwnedBy(owner)));
 	return document ?? null;
 }
 
 /** The document's file as a response to stream on, with the name it was uploaded under. */
-export async function openDocument(id: string) {
-	const document = await findDocument(id);
+export async function openDocument(owner: FinanceOwner, id: string) {
+	const document = await findDocument(owner, id);
 	if (!document) return null;
-	const file = await media.open(documentPath(document));
+	const file = await ownerMedia(owner).open(documentPath(document));
 	return file ? { ...file, name: document.name } : null;
 }
 
-export async function readDocumentBytes(document: { id: string; contentType: string }) {
-	return media.read(documentPath(document));
+export async function readDocumentBytes(
+	owner: FinanceOwner,
+	document: { id: string; contentType: string }
+) {
+	return ownerMedia(owner).read(documentPath(document));
 }
 
 /**
  * Makes a transaction's documents exactly the ones named: those just uploaded are attached, and
- * any it had that are no longer named are deleted. A document of another transaction is left
- * alone, whatever is named.
+ * any it had that are no longer named are deleted. A document of another transaction, or of
+ * another owner, is left alone, whatever is named.
  */
-export async function setTransactionDocuments(transactionId: string, ids: string[]) {
+export async function setTransactionDocuments(
+	owner: FinanceOwner,
+	transactionId: string,
+	ids: string[]
+) {
 	const wanted = ids.filter(isDocumentId);
 
 	if (wanted.length) {
@@ -97,28 +112,32 @@ export async function setTransactionDocuments(transactionId: string, ids: string
 			.where(
 				and(
 					inArray(transactionDocuments.id, wanted),
-					isNull(transactionDocuments.transactionId)
+					isNull(transactionDocuments.transactionId),
+					documentsOwnedBy(owner)
 				)
 			);
 	}
 
-	const current = await documentsOf(transactionId);
-	await removeDocuments(current.filter((document) => !wanted.includes(document.id))
+	const current = await documentsOf(owner, transactionId);
+	await removeDocuments(
+		owner,
+		current.filter((document) => !wanted.includes(document.id))
 	);
 }
 
 /** The documents of one transaction. Read these before deleting it, to delete their files after. */
-export async function documentsOf(transactionId: string) {
+export async function documentsOf(owner: FinanceOwner, transactionId: string) {
 	return db
 		.select()
 		.from(transactionDocuments)
-		.where(
-			eq(transactionDocuments.transactionId, transactionId)
-		);
+		.where(and(eq(transactionDocuments.transactionId, transactionId), documentsOwnedBy(owner)));
 }
 
 /** Deletes documents: their rows, if still there, and their files. */
-export async function removeDocuments(documents: { id: string; contentType: string }[]) {
+export async function removeDocuments(
+	owner: FinanceOwner,
+	documents: { id: string; contentType: string }[]
+) {
 	if (documents.length === 0) return;
 
 	await db.delete(transactionDocuments).where(
@@ -126,27 +145,29 @@ export async function removeDocuments(documents: { id: string; contentType: stri
 			inArray(
 				transactionDocuments.id,
 				documents.map((document) => document.id)
-			)
+			),
+			documentsOwnedBy(owner)
 		)
 	);
 	for (const document of documents) {
-		await media.remove(documentPath(document));
+		await ownerMedia(owner).remove(documentPath(document));
 	}
 }
 
 /**
- * Clears out the documents uploaded more than a day ago for a transaction that was
+ * Clears out the owner's documents uploaded more than a day ago for a transaction that was
  * never saved.
  */
-export async function removeStrayDocuments() {
+export async function removeStrayDocuments(owner: FinanceOwner) {
 	const strays = await db
 		.select()
 		.from(transactionDocuments)
 		.where(
 			and(
 				isNull(transactionDocuments.transactionId),
-				lt(transactionDocuments.createdAt, sql`now() - interval '1 day'`)
+				lt(transactionDocuments.createdAt, sql`now() - interval '1 day'`),
+				documentsOwnedBy(owner)
 			)
 		);
-	await removeDocuments(strays);
+	await removeDocuments(owner, strays);
 }

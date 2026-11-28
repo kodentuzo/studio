@@ -13,14 +13,24 @@ import {
 	storeDocument
 } from '#lib/server/documents.js';
 import { invoiceReadingEnabled, readInvoice } from '#lib/server/invoice.js';
+import {
+	documentsOwnedBy,
+	ownerId,
+	transactionsOf,
+	type FinanceOwner
+} from '#lib/server/finance-owner.js';
 import { requireOrganization } from '#lib/server/organizations.js';
 import type { Actions, PageServerLoad } from './$types';
+
+// These are the organization's finances. A person's own are kept apart: see finance-owner.ts.
+const owner: FinanceOwner = null;
 
 export const load: PageServerLoad = async () => {
 	await requireOrganization();
 	const rows = await db
 		.select()
 		.from(transactions)
+		.where(transactionsOf(owner))
 		// Newest first, and the opening balance always last: it comes before everything.
 		.orderBy(
 			sql`${transactions.source} = 'opening'`,
@@ -38,7 +48,7 @@ export const load: PageServerLoad = async () => {
 			expenses: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} < 0 and ${transactions.source} <> 'opening'), 0)`
 		})
 		.from(transactions)
-		.where(eq(transactions.status, 'paid'));
+		.where(and(eq(transactions.status, 'paid'), transactionsOf(owner)));
 
 	// Each transaction's documents, oldest first.
 	const documents = await db
@@ -49,11 +59,7 @@ export const load: PageServerLoad = async () => {
 			contentType: transactionDocuments.contentType
 		})
 		.from(transactionDocuments)
-		.where(
-			and(
-				isNotNull(transactionDocuments.transactionId)
-			)
-		)
+		.where(and(isNotNull(transactionDocuments.transactionId), documentsOwnedBy(owner)))
 		.orderBy(transactionDocuments.createdAt);
 
 	const opening = rows.find((row) => row.source === 'opening') ?? null;
@@ -133,9 +139,9 @@ export const actions: Actions = {
 		}
 
 		// A good moment to clear out documents whose transaction was never saved.
-		await removeStrayDocuments();
+		await removeStrayDocuments(owner);
 
-		const result = await storeDocument(file);
+		const result = await storeDocument(owner, file);
 		if ('error' in result) return fail(422, { action: 'upload', error: result.error });
 
 		return { document: result };
@@ -148,9 +154,9 @@ export const actions: Actions = {
 
 		const [added] = await db
 			.insert(transactions)
-			.values(input.values)
+			.values({ ...input.values, teamId: ownerId(owner) })
 			.returning({ id: transactions.id });
-		await setTransactionDocuments(added.id, input.documentIds);
+		await setTransactionDocuments(owner, added.id, input.documentIds);
 
 		return { added: true };
 	},
@@ -172,13 +178,10 @@ export const actions: Actions = {
 			.update(transactions)
 			.set(input.values)
 			.where(
-				and(
-					eq(transactions.id, id),
-					ne(transactions.source, 'opening')
-				)
+				and(eq(transactions.id, id), ne(transactions.source, 'opening'), transactionsOf(owner))
 			)
 			.returning({ id: transactions.id });
-		if (edited) await setTransactionDocuments(edited.id, input.documentIds);
+		if (edited) await setTransactionDocuments(owner, edited.id, input.documentIds);
 
 		return { edited: true };
 	},
@@ -188,7 +191,7 @@ export const actions: Actions = {
 	readInvoice: async ({ request }) => {
 		await requireOrganization();
 		const form = await request.formData();
-		const document = await findDocument(String(form.get('documentId') ?? ''));
+		const document = await findDocument(owner, String(form.get('documentId') ?? ''));
 		if (!document) {
 			return fail(400, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -199,7 +202,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const bytes = await readDocumentBytes(document);
+		const bytes = await readDocumentBytes(owner, document);
 		if (!bytes) {
 			return fail(404, { action: 'readInvoice', error: 'That file does not exist.' });
 		}
@@ -222,19 +225,16 @@ export const actions: Actions = {
 		}
 
 		// Its documents go with it: the rows by themselves, the files here.
-		const documents = await documentsOf(id);
+		const documents = await documentsOf(owner, id);
 
 		// The opening balance is removed by setting it to 0 in its own form.
 		const [removed] = await db
 			.delete(transactions)
 			.where(
-				and(
-					eq(transactions.id, id),
-					ne(transactions.source, 'opening')
-				)
+				and(eq(transactions.id, id), ne(transactions.source, 'opening'), transactionsOf(owner))
 			)
 			.returning({ id: transactions.id });
-		if (removed) await removeDocuments(documents);
+		if (removed) await removeDocuments(owner, documents);
 
 		return { removed: true };
 	},
@@ -253,10 +253,7 @@ export const actions: Actions = {
 			.update(transactions)
 			.set({ status: 'paid' })
 			.where(
-				and(
-					eq(transactions.id, id),
-					eq(transactions.status, 'planned')
-				)
+				and(eq(transactions.id, id), eq(transactions.status, 'planned'), transactionsOf(owner))
 			);
 
 		return { markedPaid: true };
@@ -276,16 +273,17 @@ export const actions: Actions = {
 		await db.transaction(async (tx) => {
 			await tx
 				.delete(transactions)
-				.where(eq(transactions.source, 'opening'));
+				.where(and(eq(transactions.source, 'opening'), transactionsOf(owner)));
 			if (Number(amount) !== 0) {
 				// The opening balance has no date of its own. The column needs one, so it takes
 				// the earliest transaction's date, or today. It is never shown.
 				const [earliest] = await tx
 					.select({ date: sql<string | null>`min(${transactions.date})` })
 					.from(transactions)
-					.where(ne(transactions.source, 'opening'));
+					.where(and(ne(transactions.source, 'opening'), transactionsOf(owner)));
 
 				await tx.insert(transactions).values({
+					teamId: ownerId(owner),
 					date: earliest?.date ?? new Date().toISOString().slice(0, 10),
 					amount,
 					counterparty: 'Opening balance',

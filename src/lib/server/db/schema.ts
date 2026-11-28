@@ -85,6 +85,9 @@ export const transactions = pgTable(
 	'transactions',
 	{
 		id: uuid('id').primaryKey().defaultRandom(),
+		// Whose money this is. Empty for the organization's; set to a personal team for the
+		// person whose own it is. It goes when that team does.
+		teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
 		date: date('date').notNull(),
 		amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
 		currency: char('currency', { length: 3 }).notNull().default('EUR'),
@@ -99,10 +102,14 @@ export const transactions = pgTable(
 	(table) => [
 		check('transactions_amount_not_zero', sql`${table.amount} <> 0`),
 		check('transactions_status_known', sql`${table.status} in ('planned', 'paid')`),
-		// There is at most one opening balance.
+		// There is at most one opening balance for the organization, and one for each person.
 		uniqueIndex('transactions_one_opening')
 			.on(table.source)
-			.where(sql`${table.source} = 'opening'`)
+			.where(sql`${table.source} = 'opening' and ${table.teamId} is null`),
+		uniqueIndex('transactions_one_personal_opening')
+			.on(table.teamId)
+			.where(sql`${table.source} = 'opening' and ${table.teamId} is not null`),
+		index('transactions_team').on(table.teamId)
 	]
 );
 
@@ -114,6 +121,9 @@ export const transactionDocuments = pgTable(
 	{
 		// Also the file's name on disk, with an ending for its type: <id>.pdf.
 		id: uuid('id').primaryKey().defaultRandom(),
+		// Whose paper this is, the same way as for a transaction. Known from the upload on, before
+		// there is a transaction to belong to.
+		teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
 		// Empty between the upload and the save of the transaction it was uploaded for. One left
 		// that way was never saved, and is cleared out after a day.
 		transactionId: uuid('transaction_id').references(() => transactions.id, {

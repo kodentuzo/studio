@@ -120,6 +120,13 @@
       "when": 1795850261973,
       "tag": "0016_personal_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795866655378,
+      "tag": "0017_transaction_owner",
+      "breakpoints": true
     }
   ]
 }
