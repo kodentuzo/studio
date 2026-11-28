@@ -53,6 +53,63 @@ export function teamSlugProblem(slug: string): string | null {
 	return null;
 }
 
+/**
+ * A slug for someone's personal team, from their email: "ada.lovelace@example.com" gives
+ * "ada-lovelace". Whether it is free is for the caller to check.
+ */
+function personalSlug(email: string) {
+	const slug = email
+		.split('@')[0]
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 36)
+		.replace(/-+$/, '');
+	return slug || 'person';
+}
+
+/**
+ * Gives a person their personal team, unless they have one: a team of their own, with nobody
+ * else in it, for work that belongs to no team of the organization. Safe to call again and
+ * again; the answer is always the one team.
+ *
+ * It writes to the database directly and not through the plugin, which would ask who is making
+ * the team: nobody is, it comes with being in the organization.
+ */
+export async function ensurePersonalTeam(
+	database: Database,
+	organizationId: string,
+	person: { id: string; name: string; email: string }
+): Promise<{ id: string; slug: string }> {
+	const own = () =>
+		database.query('select id, slug from teams where personal_user_id = $1', [person.id]);
+
+	let found = (await own()).rows[0];
+
+	// The slug comes from the email, once. If it is taken, a number is added: ada, ada-2, ada-3.
+	const base = personalSlug(person.email);
+	for (let number = 1; !found; number++) {
+		const slug = number === 1 ? base : `${base}-${number}`;
+		if (RESERVED_TEAM_SLUGS.includes(slug)) continue;
+		// Nothing is added when the slug is taken, or when a second request got here first.
+		await database.query(
+			`insert into teams (organization_id, slug, name, personal_user_id, member_count)
+			 values ($1, $2, $3, $4, 1) on conflict do nothing`,
+			[organizationId, slug, person.name.trim().slice(0, 45) || slug, person.id]
+		);
+		found = (await own()).rows[0];
+	}
+
+	const team = { id: String(found.id), slug: String(found.slug) };
+	await database.query(
+		`insert into team_members (id, team_id, user_id, created_at)
+		 select gen_random_uuid(), $1, $2, now()
+		 where not exists (select 1 from team_members where team_id = $1 and user_id = $2)`,
+		[team.id, person.id]
+	);
+	return team;
+}
+
 function refuse(message: string): never {
 	throw new APIError('BAD_REQUEST', { message });
 }
@@ -74,6 +131,14 @@ export function organizationPlugin(database: Database) {
 		if (!found.rows.some((row) => hasOwner(String(row.role)))) {
 			refuse('Only an owner of the organization can do that.');
 		}
+	}
+
+	// True for a personal team: see ensurePersonalTeam above.
+	async function isPersonal(teamId: string) {
+		const found = await database.query('select personal_user_id from teams where id = $1', [
+			teamId
+		]);
+		return found.rows[0]?.personal_user_id != null;
 	}
 
 	return organization({
@@ -149,7 +214,11 @@ export function organizationPlugin(database: Database) {
 				const taken = await database.query('select 1 from teams where slug = $1', [slug]);
 				if (taken.rows.length > 0) refuse(`The slug "${slug}" is already used.`);
 			},
-			beforeUpdateTeam: async ({ updates }) => {
+			//
+			// A personal team is one person's own, so it stays as it was made: it is not renamed,
+			// nobody joins it, and its person is not taken out of it.
+			beforeUpdateTeam: async ({ team, updates }) => {
+				if (await isPersonal(team.id)) refuse('A personal team cannot be changed.');
 				if ('slug' in updates) refuse('The slug of a team cannot be changed.');
 				if (updates.name !== undefined) {
 					const problem = teamNameProblem(updates.name.trim());
@@ -157,6 +226,14 @@ export function organizationPlugin(database: Database) {
 				}
 			},
 			beforeDeleteTeam: async () => refuse('A team is deleted from its settings in Studio.'),
+			beforeAddTeamMember: async ({ team }) => {
+				if (await isPersonal(team.id)) refuse('A personal team is for one person only.');
+			},
+			beforeRemoveTeamMember: async ({ team }) => {
+				if (await isPersonal(team.id)) {
+					refuse('A personal team belongs to its person, who cannot be taken out of it.');
+				}
+			},
 			// What touches an owner is for owners: see the top of this file. Invitations are checked
 			// here. Changing and removing members is checked by the plugin itself, whose hooks for
 			// those are told who is being changed and not who is doing it.

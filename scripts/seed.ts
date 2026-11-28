@@ -1,7 +1,7 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
 // It adds an account to sign in with, the organization Acme, which that account owns, the team
-// Games with one project, and a few transactions. What is already there is left alone, so running it
+// Games with one project, the account's personal team, and a few transactions. What is already there is left alone, so running it
 // again changes nothing.
 // Never run it against a real installation: the account's password is written right here.
 //
@@ -10,11 +10,12 @@
 
 import { betterAuth } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
+import { isNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import { organizations, projects, teams, transactions } from '../src/lib/server/db/schema.ts';
-import { organizationPlugin } from '../src/lib/server/organization-plugin.ts';
+import { ensurePersonalTeam, organizationPlugin } from '../src/lib/server/organization-plugin.ts';
 
 const url = process.env.POSTGRES_URL;
 if (!url) {
@@ -47,7 +48,9 @@ if (known.rowCount === 0) {
 	await auth.api.signUpEmail({ body: ACCOUNT });
 }
 
-const account = await pool.query('select id from "user" where email = $1', [ACCOUNT.email]);
+const account = await pool.query('select id, name, email from "user" where email = $1', [
+	ACCOUNT.email
+]);
 
 // The organization is made through the sign-in library too, which makes the account its owner.
 const [seeded] = await db.select().from(organizations).limit(1);
@@ -58,7 +61,7 @@ if (!seeded) {
 }
 
 // A team, with the account in it. Made as the account itself, the way the page does it.
-const [madeBefore] = await db.select().from(teams).limit(1);
+const [madeBefore] = await db.select().from(teams).where(isNull(teams.personalUserId)).limit(1);
 if (!madeBefore) {
 	const signedIn = await auth.api.signInEmail({
 		body: { email: ACCOUNT.email, password: ACCOUNT.password },
@@ -81,7 +84,11 @@ if (!madeBefore) {
 	});
 }
 
-const [team] = await db.select().from(teams).limit(1);
+const [team] = await db.select().from(teams).where(isNull(teams.personalUserId)).limit(1);
+
+// The account's personal team: its own, with nobody else in it.
+const [home] = await db.select().from(organizations).limit(1);
+await ensurePersonalTeam(pool, home.id, account.rows[0]);
 
 await db
 	.insert(projects)

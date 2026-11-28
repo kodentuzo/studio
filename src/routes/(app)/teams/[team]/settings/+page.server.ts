@@ -127,6 +127,10 @@ export const actions: Actions = {
 	// a slip of the hand.
 	delete: async ({ request, params }) => {
 		const { team } = await requireManagedTeam(params.team);
+		// A personal team is not deleted by hand: it goes when its person leaves the organization.
+		if (team.personalUserId) {
+			return fail(400, { action: 'delete', error: 'A personal team cannot be deleted.' });
+		}
 		const form = await request.formData();
 		const typed = String(form.get('slug') ?? '').trim();
 

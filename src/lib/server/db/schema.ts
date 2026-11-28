@@ -62,6 +62,9 @@ export const teams = pgTable(
 		// The short name in the team's address and the name of its folder. It never changes.
 		slug: text('slug').notNull().unique(),
 		name: text('name').notNull(),
+		// Set on a personal team: the one person it belongs to. Everyone has at most one. It is
+		// empty on the teams the organization makes for itself.
+		personalUserId: uuid('personal_user_id').unique(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		// Two columns the sign-in library keeps: when the team last changed, and how many people
 		// are in it.
