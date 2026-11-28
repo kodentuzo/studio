@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { AUTH_URL } from '$app/env/private';
 import {
 	findOrganization,
 	findOrganizationOf,
@@ -22,8 +23,8 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 		redirect(303, (await findOrganization()) ? '/not-a-member' : '/setup');
 	}
 
-	// The teams the person sees, for the switcher at the top of the sidebar, and the one it
-	// shows: the team in the address, or else the oldest.
+	// The teams the person sees, and the one the sidebar follows: the team in the address, or
+	// else the oldest.
 	const canManageTeams = managesMembers(organization);
 	const teams = (await listTeamsOf(locals.user.id, canManageTeams)).map(({ slug, name }) => ({
 		slug,
@@ -32,9 +33,11 @@ export const load: LayoutServerLoad = async ({ locals, params }) => {
 
 	return {
 		user: locals.user,
-		organization: { name: organization.name },
+		organization: { slug: organization.slug, name: organization.name },
 		teams,
 		team: teams.find((team) => team.slug === params.team) ?? teams[0] ?? null,
-		canManageTeams
+		canManageTeams,
+		// Where the person's own pages are: the account service.
+		authUrl: AUTH_URL
 	};
 };

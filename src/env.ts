@@ -18,6 +18,10 @@ export const variables = defineEnvVars({
 	BETTER_AUTH_URL: {
 		description: 'The address Studio is reached at, such as http://localhost:5173.'
 	},
+	AUTH_URL: {
+		description:
+			'The address of the account service, where people keep their own account, such as http://localhost:5174.'
+	},
 	MEDIA_DIR: {
 		description:
 			'The folder media files are kept in. It must survive restarts, so in a container it has to be a volume.',

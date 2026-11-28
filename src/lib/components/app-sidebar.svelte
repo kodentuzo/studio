@@ -32,7 +32,7 @@
 	import NavMain from "./nav-main.svelte";
 	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
-	import TeamSwitcher from "./team-switcher.svelte";
+	import AccountSwitcher from "./account-switcher.svelte";
 	import type { ComponentProps } from "svelte";
 
 	let {
@@ -40,24 +40,22 @@
 		collapsible = "icon",
 		user,
 		organization,
-		teams,
 		team,
-		canManageTeams,
+		authUrl,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
 		// The organization this Studio belongs to.
-		organization: { name: string };
-		// The teams the person sees, and the one the switcher shows: null when there is none.
-		teams: { slug: string; name: string }[];
+		organization: { slug: string; name: string };
+		// The team the Projects link follows: null when the person has none.
 		team: { slug: string; name: string } | null;
-		// True for those who may add a team: the organization's owners and admins.
-		canManageTeams: boolean;
+		// Where the account service is reached.
+		authUrl: string;
 	} = $props();
 
 	// The overview, then the places Studio keeps things.
-	// Projects belong to a team, so that link follows the team the switcher shows, and is left
-	// out for someone who has no team.
+	// Projects belong to a team, so that link follows the team in the address, or else the
+	// oldest, and is left out for someone who has no team.
 	const navMain = $derived([
 		{ title: "Overview", url: "/", icon: LayoutDashboardIcon },
 		...(team
@@ -70,14 +68,14 @@
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		<TeamSwitcher {organization} {teams} {team} canAdd={canManageTeams} />
+		<AccountSwitcher {user} {organization} {authUrl} />
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={navMain} />
 		<NavProjects projects={data.projects} />
 	</Sidebar.Content>
 	<Sidebar.Footer>
-		<NavUser {user} />
+		<NavUser {user} {authUrl} />
 	</Sidebar.Footer>
 	<Sidebar.Rail />
 </Sidebar.Root>

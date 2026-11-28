@@ -10,9 +10,8 @@
 	<AppSidebar
 		user={data.user}
 		organization={data.organization}
-		teams={data.teams}
 		team={data.team}
-		canManageTeams={data.canManageTeams}
+		authUrl={data.authUrl}
 	/>
 	<Sidebar.Inset>
 		<header
