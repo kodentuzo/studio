@@ -2,6 +2,7 @@
 	import EllipsisIcon from "@lucide/svelte/icons/ellipsis";
 	import { enhance } from "$app/forms";
 	import { invalidateAll } from "$app/navigation";
+	import { page } from "$app/state";
 	import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
 	import * as DropdownMenu from "#lib/components/ui/dropdown-menu/index.js";
@@ -60,6 +61,18 @@
 		}
 		await invalidateAll();
 		membersBusy = false;
+	}
+
+	// Invitations: nothing is sent, so each one has a link to copy and pass on.
+	let inviting = $state(false);
+	let copied = $state<string | null>(null);
+
+	async function copyLink(id: string) {
+		await navigator.clipboard.writeText(`${page.url.origin}/invitations/${id}`);
+		copied = id;
+		setTimeout(() => {
+			if (copied === id) copied = null;
+		}, 2000);
 	}
 </script>
 
@@ -199,6 +212,86 @@
 		</Table.Root>
 		{#if membersError}
 			<Field.Error>{membersError}</Field.Error>
+		{/if}
+
+		{#if data.canManageMembers}
+			{#if data.invitations.length > 0}
+				<div class="flex flex-col gap-2">
+					<h3 class="text-sm font-medium">Invitations</h3>
+					<p class="text-sm text-muted-foreground">
+						Studio sends no email. Copy an invitation's link and pass it on; only the account
+						with that email address can use it.
+					</p>
+					<Table.Root>
+						<Table.Body>
+							{#each data.invitations as invitation (invitation.id)}
+								<Table.Row>
+									<Table.Cell>
+										<div class="font-medium">{invitation.email}</div>
+										<div class="text-sm text-muted-foreground">
+											{roleNames(invitation.role)} · expires {dateFormat.format(invitation.expires)}
+										</div>
+									</Table.Cell>
+									<Table.Cell class="text-end">
+										<Button variant="outline" size="sm" onclick={() => copyLink(invitation.id)}>
+											{copied === invitation.id ? "Copied" : "Copy link"}
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											disabled={membersBusy}
+											onclick={() =>
+												memberAction("cancelInvitation", { invitationId: invitation.id })}
+										>
+											Cancel
+										</Button>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</div>
+			{/if}
+
+			<form
+				method="POST"
+				action="?/invite"
+				class="flex flex-col gap-2"
+				use:enhance={() => {
+					inviting = true;
+					return async ({ update }) => {
+						await update();
+						inviting = false;
+					};
+				}}
+			>
+				<Field.Label for="invite-email">Invite someone</Field.Label>
+				<div class="flex flex-wrap gap-2">
+					<Input
+						id="invite-email"
+						name="email"
+						type="email"
+						autocomplete="off"
+						placeholder="name@example.com"
+						required
+						class="min-w-48 flex-1"
+						value={form?.action === "invite" && form.error ? form.email : ""}
+					/>
+					<select
+						name="role"
+						aria-label="Role"
+						class="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+					>
+						{#each ROLES.toReversed() as role (role.value)}
+							<option value={role.value}>{role.label}</option>
+						{/each}
+					</select>
+					<Button type="submit" disabled={inviting}>Invite</Button>
+				</div>
+				{#if form?.action === "invite" && form.error}
+					<Field.Error>{form.error}</Field.Error>
+				{/if}
+			</form>
 		{/if}
 	</Card.Content>
 </Card.Root>

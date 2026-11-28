@@ -43,8 +43,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.route.id === '/(app)/organizations/[organization]/media/projects/[slug]/[name]';
 
 	// Everything else needs a signed-in user, except signing in itself.
+	// A page that was asked for is remembered, so that signing in leads back to it: that is how
+	// an invitation link works for someone who is not signed in yet.
 	if (!event.locals.user && !isAuthPage && !isAuthApi && !isProjectMedia) {
-		redirect(303, '/auth/sign-in');
+		const asked = event.url.pathname + event.url.search;
+		const remember = event.request.method === 'GET' && asked !== '/';
+		redirect(303, remember ? `/auth/sign-in?next=${encodeURIComponent(asked)}` : '/auth/sign-in');
 	}
 
 	// A signed-in user has no use for the sign-in and sign-up pages.

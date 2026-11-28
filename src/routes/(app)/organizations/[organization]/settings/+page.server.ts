@@ -26,7 +26,25 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
 		headers: request.headers
 	});
 
+	// Invitations still waiting for an answer. Only those who can invite get to see them.
+	const invited = managesMembers(organization)
+		? await auth.api.listInvitations({
+				query: { organizationId: organization.id },
+				headers: request.headers
+			})
+		: [];
+	const now = new Date();
+
 	return {
+		invitations: invited
+			.filter((invitation) => invitation.status === 'pending' && invitation.expiresAt > now)
+			.map((invitation) => ({
+				// Also the last part of the link the invited person opens: /invitations/<id>.
+				id: invitation.id,
+				email: invitation.email,
+				role: invitation.role,
+				expires: invitation.expiresAt
+			})),
 		settings: { name, slug, createdAt },
 		// Every member can read the settings. Only an owner can change them.
 		canManage: isOwner(organization),
@@ -120,6 +138,48 @@ export const actions: Actions = {
 				body: { memberIdOrEmail: memberId, organizationId: organization.id },
 				headers: request.headers
 			});
+		} catch (thrown) {
+			return refusal(thrown, 'members');
+		}
+		return { action: 'members', saved: true };
+	},
+
+	// Invites someone by email. Nothing is sent: the page shows a link to pass on, and only the
+	// account with that email can use it.
+	invite: async ({ request, params }) => {
+		const organization = await requireOrganization(params.organization);
+		const form = await request.formData();
+		const email = String(form.get('email') ?? '').trim().toLowerCase();
+		const role = String(form.get('role') ?? '');
+		const refuse = (status: number, error: string) =>
+			fail(status, { action: 'invite', email, role, error });
+
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return refuse(400, 'Enter an email address.');
+		if (!ROLES.includes(role)) return refuse(400, 'Unknown role.');
+
+		try {
+			await auth.api.createInvitation({
+				body: { email, role: role as 'owner' | 'admin' | 'member', organizationId: organization.id },
+				headers: request.headers
+			});
+		} catch (thrown) {
+			if (!(thrown instanceof APIError)) throw thrown;
+			return refuse(
+				thrown.statusCode === 403 ? 403 : 400,
+				thrown.body?.message ?? 'The invitation could not be made.'
+			);
+		}
+		return { action: 'invite', invited: email };
+	},
+
+	// Withdraws an invitation, so its link stops working.
+	cancelInvitation: async ({ request, params }) => {
+		await requireOrganization(params.organization);
+		const form = await request.formData();
+		const invitationId = String(form.get('invitationId') ?? '');
+
+		try {
+			await auth.api.cancelInvitation({ body: { invitationId }, headers: request.headers });
 		} catch (thrown) {
 			return refusal(thrown, 'members');
 		}

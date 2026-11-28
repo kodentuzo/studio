@@ -6,6 +6,8 @@
 	import { cn } from "#lib/utils.js";
 	import type { HTMLAttributes } from "svelte/elements";
 	import { goto } from "$app/navigation";
+	import { page } from "$app/state";
+	import { nextPath, withNext } from "#lib/next.js";
 	import { authClient } from "#lib/auth-client.js";
 
 	let { class: className, ...restProps }: HTMLAttributes<HTMLDivElement> = $props();
@@ -38,7 +40,7 @@
 		}
 
 		// Signing up also signs in. Reload the server data, so the guard sees the session.
-		await goto("/", { invalidateAll: true });
+		await goto(nextPath(page.url), { invalidateAll: true });
 	}
 </script>
 
@@ -110,7 +112,7 @@
 						{/if}
 						<Button type="submit" disabled={pending}>Create Account</Button>
 						<Field.Description class="text-center">
-							Already have an account? <a href="/auth/sign-in">Sign in</a>
+							Already have an account? <a href={withNext("/auth/sign-in", page.url)}>Sign in</a>
 						</Field.Description>
 					</Field.Field>
 				</Field.Group>
