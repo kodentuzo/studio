@@ -1,8 +1,8 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
-// It adds an account to sign in with, and the organization Acme, which that account owns, with
-// one project and a few transactions. What is already there is left alone, so running it again
-// changes nothing.
+// It adds an account to sign in with, the organization Acme, which that account owns, the team
+// Games, one project and a few transactions. What is already there is left alone, so running it
+// again changes nothing.
 // Never run it against a real installation: the account's password is written right here.
 //
 // It runs outside Studio, so it reads the database address from the environment itself and
@@ -13,7 +13,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
-import { organizations, projects, transactions } from '../src/lib/server/db/schema.ts';
+import { organizations, projects, teams, transactions } from '../src/lib/server/db/schema.ts';
 import { organizationPlugin } from '../src/lib/server/organization-plugin.ts';
 
 const url = process.env.POSTGRES_URL;
@@ -57,6 +57,30 @@ if (!seeded) {
 	});
 }
 
+// A team, with the account in it. Made as the account itself, the way the page does it.
+const [team] = await db.select().from(teams).limit(1);
+if (!team) {
+	const signedIn = await auth.api.signInEmail({
+		body: { email: ACCOUNT.email, password: ACCOUNT.password },
+		returnHeaders: true
+	});
+	const cookie = signedIn.headers
+		.getSetCookie()
+		.map((value) => value.split(';')[0])
+		.join('; ');
+	const headers = new Headers({ cookie });
+
+	const [organization] = await db.select().from(organizations).limit(1);
+	const made = await auth.api.createTeam({
+		body: { name: 'Games', slug: 'games', organizationId: organization.id },
+		headers
+	});
+	await auth.api.addTeamMember({
+		body: { teamId: made.id, userId: account.rows[0].id, organizationId: organization.id },
+		headers
+	});
+}
+
 await db
 	.insert(projects)
 	.values({
@@ -89,4 +113,4 @@ if (!existing) {
 }
 
 await pool.end();
-console.log(`Seeded the organization Acme and the account ${ACCOUNT.email}.`);
+console.log(`Seeded the organization Acme, the team Games and the account ${ACCOUNT.email}.`);

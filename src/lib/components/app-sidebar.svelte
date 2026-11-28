@@ -32,6 +32,7 @@
 	import NavMain from "./nav-main.svelte";
 	import NavProjects from "./nav-projects.svelte";
 	import NavUser from "./nav-user.svelte";
+	import TeamSwitcher from "./team-switcher.svelte";
 	import type { ComponentProps } from "svelte";
 
 	let {
@@ -39,11 +40,19 @@
 		collapsible = "icon",
 		user,
 		organization,
+		teams,
+		team,
+		canManageTeams,
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		user: ComponentProps<typeof NavUser>["user"];
 		// The organization this Studio belongs to.
 		organization: { name: string };
+		// The teams the person sees, and the one the switcher shows: null when there is none.
+		teams: { slug: string; name: string }[];
+		team: { slug: string; name: string } | null;
+		// True for those who may add a team: the organization's owners and admins.
+		canManageTeams: boolean;
 	} = $props();
 
 	// The overview, then the places Studio keeps things.
@@ -57,26 +66,7 @@
 
 <Sidebar.Root bind:ref {collapsible} {...restProps}>
 	<Sidebar.Header>
-		<!-- One Studio is one organization, so there is nothing to switch between. -->
-		<Sidebar.Menu>
-			<Sidebar.MenuItem>
-				<Sidebar.MenuButton size="lg">
-					{#snippet child({ props })}
-						<a href="/" {...props}>
-							<div
-								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary font-medium text-sidebar-primary-foreground"
-							>
-								{organization.name.trim()[0]?.toUpperCase() ?? "?"}
-							</div>
-							<div class="grid flex-1 text-start text-sm leading-tight">
-								<span class="truncate font-medium">{organization.name}</span>
-								<span class="truncate text-xs">Studio</span>
-							</div>
-						</a>
-					{/snippet}
-				</Sidebar.MenuButton>
-			</Sidebar.MenuItem>
-		</Sidebar.Menu>
+		<TeamSwitcher {organization} {teams} {team} canAdd={canManageTeams} />
 	</Sidebar.Header>
 	<Sidebar.Content>
 		<NavMain items={navMain} />

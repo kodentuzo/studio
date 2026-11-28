@@ -13,3 +13,11 @@ export const organizationMembers = pgTable('organization_members', {
 	role: text('role').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull()
 });
+
+/** Who is in which team. A person is in a team or not: what they may do comes from their role. */
+export const teamMembers = pgTable('team_members', {
+	id: uuid('id').primaryKey(),
+	teamId: uuid('team_id').notNull(),
+	userId: uuid('user_id').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true })
+});

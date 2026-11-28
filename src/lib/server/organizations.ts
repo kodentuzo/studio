@@ -17,10 +17,12 @@ export async function findOrganization(): Promise<Organization | null> {
 	return organization ?? null;
 }
 
-/** The same, but only for someone who belongs to it. Null for anyone else. */
-export async function findOrganizationOf(userId: string): Promise<Organization | null> {
+/** The same, with the person's role, but only for someone who belongs to it. Null for anyone else. */
+export async function findOrganizationOf(
+	userId: string
+): Promise<(Organization & { role: string }) | null> {
 	const [organization] = await db
-		.select(getTableColumns(organizations))
+		.select({ ...getTableColumns(organizations), role: organizationMembers.role })
 		.from(organizations)
 		.innerJoin(organizationMembers, eq(organizationMembers.organizationId, organizations.id))
 		.where(eq(organizationMembers.userId, userId))

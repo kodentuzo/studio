@@ -33,6 +33,26 @@ export function slugProblem(slug: string): string | null {
 	return null;
 }
 
+/** Addresses under /teams that are pages of their own, so no team can have them as its slug. */
+const RESERVED_TEAM_SLUGS = ['new'];
+
+/** What is wrong with a name for a team, as a sentence, or null. */
+export function teamNameProblem(name: string): string | null {
+	if (!name) return 'Give the team a name.';
+	if (name.length > 45) return 'The name can be at most 45 characters.';
+	return null;
+}
+
+/** What is wrong with a slug for a team, as a sentence, or null. Whether it is taken is not checked. */
+export function teamSlugProblem(slug: string): string | null {
+	const problem = slugProblem(slug);
+	if (problem) return problem;
+	if (RESERVED_TEAM_SLUGS.includes(slug)) {
+		return `The slug "${slug}" is used by Studio itself. Choose another.`;
+	}
+	return null;
+}
+
 function refuse(message: string): never {
 	throw new APIError('BAD_REQUEST', { message });
 }
@@ -65,6 +85,9 @@ export function organizationPlugin(database: Database) {
 		},
 		// The organization is the installation: it is not deleted from inside it.
 		disableOrganizationDeletion: true,
+		// Teams are the workspaces inside the organization. None is made by itself: the people
+		// who look after the organization make them.
+		teams: { enabled: true, defaultTeam: { enabled: false } },
 		schema: {
 			organization: {
 				modelName: 'organizations',
@@ -80,8 +103,24 @@ export function organizationPlugin(database: Database) {
 					organizationId: 'organization_id',
 					inviterId: 'inviter_id',
 					expiresAt: 'expires_at',
-					createdAt: 'created_at'
+					createdAt: 'created_at',
+					teamId: 'team_id'
 				}
+			},
+			// Studio's own "teams" table, which has one column more than the plugin knows: the slug.
+			team: {
+				modelName: 'teams',
+				fields: {
+					organizationId: 'organization_id',
+					createdAt: 'created_at',
+					updatedAt: 'updated_at',
+					memberCount: 'member_count'
+				},
+				additionalFields: { slug: { type: 'string', required: true, unique: true } }
+			},
+			teamMember: {
+				modelName: 'team_members',
+				fields: { teamId: 'team_id', userId: 'user_id', createdAt: 'created_at' }
 			}
 		},
 		organizationHooks: {
@@ -100,6 +139,24 @@ export function organizationPlugin(database: Database) {
 					if (problem) refuse(problem);
 				}
 			},
+			// A team's slug is the name of its folder on disk, so the rules for one are checked before
+			// it is made, it never changes afterwards, and a team is only deleted by Studio's own
+			// page, which removes the folder with it.
+			beforeCreateTeam: async ({ team }) => {
+				const slug = String(team.slug ?? '');
+				const problem = teamNameProblem((team.name ?? '').trim()) ?? teamSlugProblem(slug);
+				if (problem) refuse(problem);
+				const taken = await database.query('select 1 from teams where slug = $1', [slug]);
+				if (taken.rows.length > 0) refuse(`The slug "${slug}" is already used.`);
+			},
+			beforeUpdateTeam: async ({ updates }) => {
+				if ('slug' in updates) refuse('The slug of a team cannot be changed.');
+				if (updates.name !== undefined) {
+					const problem = teamNameProblem(updates.name.trim());
+					if (problem) refuse(problem);
+				}
+			},
+			beforeDeleteTeam: async () => refuse('A team is deleted from its settings in Studio.'),
 			// What touches an owner is for owners: see the top of this file. Invitations are checked
 			// here. Changing and removing members is checked by the plugin itself, whose hooks for
 			// those are told who is being changed and not who is doing it.

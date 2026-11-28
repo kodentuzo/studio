@@ -47,6 +47,36 @@ export const organizations = pgTable(
 	]
 );
 
+// A group of people in the organization, and the workspace they share. Each team has its own
+// address, /teams/<slug>, and its own folder in the media folder, teams/<slug>.
+//
+// The sign-in library reads and writes this table too: it is the "team" of its organization
+// plugin. Who is in a team is a table that library looks after itself.
+export const teams = pgTable(
+	'teams',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		// The short name in the team's address and the name of its folder. It never changes.
+		slug: text('slug').notNull().unique(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		// Two columns the sign-in library keeps: when the team last changed, and how many people
+		// are in it.
+		updatedAt: timestamp('updated_at', { withTimezone: true }),
+		memberCount: integer('member_count').notNull().default(0)
+	},
+	(table) => [
+		check(
+			'teams_slug_shape',
+			sql`${table.slug} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' and char_length(${table.slug}) <= 40`
+		),
+		check('teams_name_length', sql`char_length(${table.name}) between 1 and 45`)
+	]
+);
+
 // Money in and money out, one row each. A negative amount is money out, a positive one money in.
 export const transactions = pgTable(
 	'transactions',
