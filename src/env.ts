@@ -20,7 +20,25 @@ export const variables = defineEnvVars({
 	},
 	AUTH_URL: {
 		description:
-			'The address of the account service, where people keep their own account, such as http://localhost:5174.'
+			'The address of the account service, where people sign in and keep their account, such as http://localhost:5174.',
+		schema: (value) => {
+			if (!value) throw new Error('AUTH_URL is not set');
+			return new URL(value).origin;
+		}
+	},
+	AUTH_CLIENT_ID: {
+		description:
+			'The name Studio gives when it asks the account service to sign someone in. The same in both.'
+	},
+	AUTH_CLIENT_SECRET: {
+		description:
+			'The secret Studio proves itself to the account service with. The same in both. At least 32 characters.',
+		schema: (value) => {
+			if (!value || value.length < 32) {
+				throw new Error('AUTH_CLIENT_SECRET must be at least 32 characters');
+			}
+			return value;
+		}
 	},
 	MEDIA_DIR: {
 		description:

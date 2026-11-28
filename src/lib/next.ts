@@ -8,9 +8,3 @@ export function nextPath(url: Address): string {
 	const next = url.searchParams.get('next') ?? '';
 	return /^\/(?![/\\])/.test(next) ? next : '/';
 }
-
-/** A sign-in or sign-up address that carries the same "next" along. */
-export function withNext(path: string, url: Address): string {
-	const next = nextPath(url);
-	return next === '/' ? path : `${path}?next=${encodeURIComponent(next)}`;
-}

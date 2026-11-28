@@ -38,25 +38,25 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = session?.user ?? null;
 	event.locals.session = session?.session ?? null;
 
-	const isAuthPage = event.route.id?.startsWith('/auth') ?? false;
-	// Better Auth's own endpoints: sign in, sign up, sign out and the rest.
+	// Signing in and out: Studio's own two addresses for it, and Better Auth's endpoints.
+	const isSigning = event.route.id?.startsWith('/auth') ?? false;
 	const isAuthApi = event.url.pathname.startsWith('/api/auth');
 
 	// A project's media files are public: anyone with the address can open one.
 	const isProjectMedia =
 		event.route.id === '/(app)/teams/[team]/media/projects/[slug]/[name]';
 
-	// Everything else needs a signed-in user, except signing in itself.
-	// A page that was asked for is remembered, so that signing in leads back to it: that is how
-	// an invitation link works for someone who is not signed in yet.
-	if (!event.locals.user && !isAuthPage && !isAuthApi && !isProjectMedia) {
+	// Everything else needs a signed-in user. Someone who is not is sent to sign in, which
+	// happens on the account service. A page that was asked for is remembered, so that signing
+	// in leads back to it: that is how an invitation link works for someone not signed in yet.
+	if (!event.locals.user && !isSigning && !isAuthApi && !isProjectMedia) {
 		const asked = event.url.pathname + event.url.search;
 		const remember = event.request.method === 'GET' && asked !== '/';
 		redirect(303, remember ? `/auth/sign-in?next=${encodeURIComponent(asked)}` : '/auth/sign-in');
 	}
 
-	// A signed-in user has no use for the sign-in and sign-up pages.
-	if (event.locals.user && isAuthPage) {
+	// A signed-in user has no use for signing in again.
+	if (event.locals.user && event.route.id === '/auth/sign-in') {
 		redirect(303, '/');
 	}
 

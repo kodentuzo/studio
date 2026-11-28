@@ -54,12 +54,12 @@ export function teamSlugProblem(slug: string): string | null {
 }
 
 /**
- * A slug for someone's personal team, from their email: "ada.lovelace@example.com" gives
- * "ada-lovelace". Whether it is free is for the caller to check.
+ * A slug for someone's personal team: their username, which is a slug already. Someone Studio
+ * knows only by email, as the seed's account is before its first sign-in, gets it from that:
+ * "ada.lovelace@example.com" gives "ada-lovelace". Whether it is free is for the caller to check.
  */
-function personalSlug(email: string) {
-	const slug = email
-		.split('@')[0]
+function personalSlug(person: { email: string; username?: string | null }) {
+	const slug = (person.username || person.email.split('@')[0])
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')
@@ -79,15 +79,15 @@ function personalSlug(email: string) {
 export async function ensurePersonalTeam(
 	database: Database,
 	organizationId: string,
-	person: { id: string; name: string; email: string }
+	person: { id: string; name: string; email: string; username?: string | null }
 ): Promise<{ id: string; slug: string }> {
 	const own = () =>
 		database.query('select id, slug from teams where personal_user_id = $1', [person.id]);
 
 	let found = (await own()).rows[0];
 
-	// The slug comes from the email, once. If it is taken, a number is added: ada, ada-2, ada-3.
-	const base = personalSlug(person.email);
+	// The slug is settled once. If it is taken, a number is added: ada, ada-2, ada-3.
+	const base = personalSlug(person);
 	for (let number = 1; !found; number++) {
 		const slug = number === 1 ? base : `${base}-${number}`;
 		if (RESERVED_TEAM_SLUGS.includes(slug)) continue;

@@ -3,9 +3,6 @@
 	import * as Avatar from "#lib/components/ui/avatar/index.js";
 	import * as Sidebar from "#lib/components/ui/sidebar/index.js";
 
-	import { goto } from "$app/navigation";
-	import { authClient } from "#lib/auth-client.js";
-
 	// The foot of the sidebar: who is signed in, leading to their own pages on the account
 	// service, and signing out. When the sidebar is collapsed only signing out is left.
 	let {
@@ -26,11 +23,6 @@
 			.map((part) => part[0]?.toUpperCase())
 			.join("")
 	);
-
-	async function signOut() {
-		await authClient.signOut();
-		await goto("/auth/sign-in", { invalidateAll: true });
-	}
 </script>
 
 <Sidebar.Menu>
@@ -51,13 +43,19 @@
 				</a>
 			{/snippet}
 		</Sidebar.MenuButton>
-		<Sidebar.MenuButton
-			tooltipContent="Sign out"
-			class="size-8 flex-none justify-center p-2"
-			aria-label="Sign out"
-			onclick={signOut}
-		>
-			<LogOutIcon />
-		</Sidebar.MenuButton>
+		<!-- A plain form, so the browser itself follows on to the account service, which is
+		     signed out of too. -->
+		<form method="POST" action="/auth/sign-out" class="contents">
+			<Sidebar.MenuButton
+				tooltipContent="Sign out"
+				class="size-8 flex-none justify-center p-2"
+			>
+				{#snippet child({ props })}
+					<button {...props} type="submit" aria-label="Sign out">
+						<LogOutIcon />
+					</button>
+				{/snippet}
+			</Sidebar.MenuButton>
+		</form>
 	</Sidebar.MenuItem>
 </Sidebar.Menu>

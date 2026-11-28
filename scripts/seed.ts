@@ -1,9 +1,9 @@
 // Fills a development database with something to look at: `pnpm db:seed`.
 //
-// It adds an account to sign in with, the organization Acme, which that account owns, the team
-// Games with one project, the account's personal team, and a few transactions. What is already there is left alone, so running it
-// again changes nothing.
-// Never run it against a real installation: the account's password is written right here.
+// It adds an account, the organization Acme, which that account owns, the team Games with one
+// project, the account's personal team, and a few transactions. What is already there is left
+// alone, so running it again changes nothing.
+// To sign in as that account, run the account service's seed too: it has the password.
 //
 // It runs outside Studio, so it reads the database address from the environment itself and
 // brings the tables up to date first, the way Studio does when it starts.
@@ -28,27 +28,31 @@ const db = drizzle(pool);
 
 await migrate(db, { migrationsFolder: 'drizzle' });
 
-// The account to sign in with. It is made through the sign-in library itself, set up as in
-// src/lib/server/auth.ts, so the password is stored the way Studio expects.
-const ACCOUNT = { name: 'Admin', email: 'admin@example.com', password: '1234567890' };
+// The account that owns everything here. People sign in on the account service, which has the
+// same account in its own seed, with the password. Studio only keeps a copy of who it is, and
+// knows the two are one by the email the first time that account signs in. For that the email
+// has to be marked as confirmed here: Studio only joins an account to someone it is sure of.
+const ACCOUNT = { name: 'Admin', username: 'admin', email: 'admin@example.com' };
 
 const auth = betterAuth({
 	baseURL: process.env.BETTER_AUTH_URL,
 	secret: process.env.BETTER_AUTH_SECRET,
 	database: pool,
-	emailAndPassword: { enabled: true },
+	user: { additionalFields: { username: { type: 'string', required: false } } },
 	advanced: { database: { generateId: 'uuid' } },
 	plugins: [organizationPlugin(pool)]
 });
 const { runMigrations } = await getMigrations(auth.options);
 await runMigrations();
 
-const known = await pool.query('select 1 from "user" where email = $1', [ACCOUNT.email]);
-if (known.rowCount === 0) {
-	await auth.api.signUpEmail({ body: ACCOUNT });
-}
+await pool.query(
+	`insert into "user" (id, name, username, email, "emailVerified", "createdAt", "updatedAt")
+	 select gen_random_uuid(), $1, $2, $3, true, now(), now()
+	 where not exists (select 1 from "user" where email = $3)`,
+	[ACCOUNT.name, ACCOUNT.username, ACCOUNT.email]
+);
 
-const account = await pool.query('select id, name, email from "user" where email = $1', [
+const account = await pool.query('select id, name, username, email from "user" where email = $1', [
 	ACCOUNT.email
 ]);
 
@@ -60,28 +64,19 @@ if (!seeded) {
 	});
 }
 
-// A team, with the account in it. Made as the account itself, the way the page does it.
+// A team, with the account in it.
 const [madeBefore] = await db.select().from(teams).where(isNull(teams.personalUserId)).limit(1);
 if (!madeBefore) {
-	const signedIn = await auth.api.signInEmail({
-		body: { email: ACCOUNT.email, password: ACCOUNT.password },
-		returnHeaders: true
-	});
-	const cookie = signedIn.headers
-		.getSetCookie()
-		.map((value) => value.split(';')[0])
-		.join('; ');
-	const headers = new Headers({ cookie });
-
 	const [organization] = await db.select().from(organizations).limit(1);
-	const made = await auth.api.createTeam({
-		body: { name: 'Games', slug: 'games', organizationId: organization.id },
-		headers
-	});
-	await auth.api.addTeamMember({
-		body: { teamId: made.id, userId: account.rows[0].id, organizationId: organization.id },
-		headers
-	});
+	const [made] = await db
+		.insert(teams)
+		.values({ organizationId: organization.id, slug: 'games', name: 'Games', memberCount: 1 })
+		.returning({ id: teams.id });
+	await pool.query(
+		`insert into team_members (id, team_id, user_id, created_at)
+		 values (gen_random_uuid(), $1, $2, now())`,
+		[made.id, account.rows[0].id]
+	);
 }
 
 const [team] = await db.select().from(teams).where(isNull(teams.personalUserId)).limit(1);

@@ -49,7 +49,7 @@ export async function listTeamsOf(userId: string, seesAll: boolean): Promise<Tea
  */
 export async function personalTeamOf(
 	organization: { id: string },
-	person: { id: string; name: string; email: string }
+	person: { id: string; name: string; email: string; username?: string | null }
 ): Promise<Team> {
 	const own = () => db.select().from(teams).where(eq(teams.personalUserId, person.id));
 
